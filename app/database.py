@@ -25,16 +25,6 @@ profile_collection = database.get_collection("query")
 async def get_collection(collection_name: str):
     return database[collection_name]
 
-# Function to register a user in the 'users' collection
-async def register_user(user_data: dict):
-    # Add created_at field to user data
-    user_data["created_at"] = datetime.utcnow()
-
-    collection = await get_collection("users")
-    result = await collection.insert_one(user_data)  # Await the insert operation
-
-    return result.inserted_id  # After awaiting, you can get the inserted_id
-
 """
 # Function to insert data into any collection
 async def insert_data(data, collection_name):
@@ -68,7 +58,7 @@ async def delete_by_id(collection_name , id):
             print(f"No user found with id {id}.")
     except Exception as e:
         print(f"Error deleting user: {e}")
-"""
+
 
 # Function to list all indexes and documents in a collection
 async def list_indexes_and_data(collection_name):
@@ -86,7 +76,7 @@ async def list_indexes_and_data(collection_name):
             print(document)  # Print each document
     except Exception as e:
         print(f"Error listing indexes in {collection_name}: {e}")
-
+"""
 # to test mongodb connection
 async def test_connection():
     try:
