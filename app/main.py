@@ -1,5 +1,5 @@
 import asyncio
-from app.database import test_connection, register_user, list_indexes_and_data, get_collection
+from app.database import test_connection, get_collection
 
 from app.database import register_user
 from pydantic import EmailStr
