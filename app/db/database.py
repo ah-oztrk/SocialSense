@@ -15,7 +15,7 @@ database = client[DB_NAME]
 
 # Koleksiyonlar
 users_collection = database.get_collection("user")
-assistance_collection = database.get_collection("history")
+history_collection = database.get_collection("history")
 forum_question_collection = database.get_collection("forum-question")
 forum_answer_collection = database.get_collection("forum-answer")
 profile_collection = database.get_collection("query")
