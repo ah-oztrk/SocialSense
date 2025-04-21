@@ -5,6 +5,11 @@ pydantic
 pydantic[email]
 motor
 python-dotenv
+requests
+pytest
+pytest-asyncio
+httpx
+ollama
 python-jose[cryptography]
 pydantic-settings
 passlib[bcrypt]

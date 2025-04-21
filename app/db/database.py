@@ -18,7 +18,7 @@ user_collection = database.get_collection("user")
 history_collection = database.get_collection("history")
 forum_question_collection = database.get_collection("forum-question")
 forum_answer_collection = database.get_collection("forum-answer")
-profile_collection = database.get_collection("query")
+query_collection = database.get_collection("query")
 
 
 # Function to get the collection
