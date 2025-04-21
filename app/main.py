@@ -1,24 +1,26 @@
 import asyncio
 from app.db.database import test_connection
-#from app.database import register_user
 from fastapi import FastAPI
-#from app.api.routes import history
 from app.api.routes.history import router as history_router
 from app.api.routes.forum import router as forum_router
+from app.api.routes.user import router as user_router
+from app.api.routes.auth import router as auth_router
 
 
 # Initialize FastAPI app
 app = FastAPI()
 
-# Include your history router
 app.include_router(history_router)
 app.include_router(forum_router)
+app.include_router(user_router, prefix="/user")
+app.include_router(auth_router, prefix="/auth")
 
-# Run the functions
-async def main():
-    await test_connection()  # Test the connection to MongoDB
+print("🚀 Main.py yüklendi")
+@app.get("/")
+def root():
+    return {"message": "API ayakta ✅"}
 
 
-# Run the main function
-if __name__ == '__main__':
-    asyncio.run(main())
+@app.on_event("startup")
+async def startup_event():
+    await test_connection()

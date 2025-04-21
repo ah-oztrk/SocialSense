@@ -5,3 +5,11 @@ pydantic
 pydantic[email]
 motor
 python-dotenv
+python-jose[cryptography]
+pydantic-settings
+passlib[bcrypt]
+bcrypt==4.0.1
+pytest==7.4.2
+pytest-asyncio==0.21.1
+email-validator
+python-multipart
