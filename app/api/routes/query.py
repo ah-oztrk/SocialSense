@@ -31,9 +31,9 @@ async def create_query(query_data: dict = Body(...)):
         raise HTTPException(status_code=400, detail="Missing required fields: user_id, query, history_id, model_name are all required")
 
     # Validate model name
-    valid_models = ["emotiondetection", "textSimplification", "normDetection"]
+    valid_models = ["emotiondetection", "textSimplification", "socialNorm"]
     if model_name not in valid_models:
-        raise HTTPException(status_code=400, detail="Invalid model name. Choose from: emotiondetection, textSimplification, normDetection")
+        raise HTTPException(status_code=400, detail="Invalid model name. Choose from: emotiondetection, textSimplification, socialNorm")
 
     # Generate a unique query_id (for simplicity, using timestamp + user_id)
     query_id = f"qry_{user_id}_{int(datetime.now().timestamp())}"
