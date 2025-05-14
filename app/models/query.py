@@ -3,6 +3,7 @@ from bson import ObjectId
 from typing import Optional
 from datetime import datetime
 
+
 class PyObjectId(ObjectId):
     @classmethod
     def __get_validators__(cls):
@@ -14,12 +15,14 @@ class PyObjectId(ObjectId):
             raise ValueError("Invalid objectid")
         return ObjectId(v)
 
+
 class Query(BaseModel):
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
     query_id: str
-    user_id: str
+    user_id: str  # User ID is associated via token
     query: str
     response: str
+    model_name: str  # Added model name field
     user_rating: Optional[float] = None
     user_feedback: Optional[str] = None
     creation_date: str
