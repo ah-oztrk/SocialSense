@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 class HistoryCreate(BaseModel):
-    user_id: str
+    #user_id: str
     history_id: str
     assistant_name: str
 
