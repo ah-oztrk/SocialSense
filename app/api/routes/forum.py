@@ -31,6 +31,8 @@ async def create_question(
     return created
 
 
+
+
 @router.get("/forum/question/{question_id}", response_model=ForumQuestionResponse)
 async def get_question(
         question_id: str,
@@ -193,3 +195,23 @@ async def delete_answer(
         raise HTTPException(status_code=500, detail="Failed to delete answer")
 
     return None
+
+# Add new endpoint to get answers for a specific question - placing it before specific routes
+
+@router.get("/forum/answer/question/{question_id}")
+
+async def get_question_answers(question_id: str):
+
+    answers = []
+
+    cursor = forum_answer_collection.find({"question_id": question_id})
+
+    async for doc in cursor:
+
+        doc["id"] = str(doc["_id"])
+
+        del doc["_id"]
+
+        answers.append(doc)
+
+    return answers
