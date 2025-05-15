@@ -8,6 +8,7 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        headerTitle: '',
         tabBarActiveTintColor: '#FFFFFF', // active icon text color
         tabBarInactiveTintColor: '#FFFFFF', // inactive icon text color
         tabBarStyle: {
@@ -26,6 +27,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
+          headerShown: false,
           tabBarIcon: ({ color }) => (
             <Ionicons name="home" size={24} color={color} />
           ),
@@ -35,6 +37,7 @@ export default function TabLayout() {
         name="assist"
         options={{
           title: 'Assist',
+          headerShown: false,
           tabBarIcon: ({ color }) => (
             <Ionicons name="happy" size={24} color={color} />
           ),
@@ -44,6 +47,7 @@ export default function TabLayout() {
         name="forum"
         options={{
           title: 'Forum',
+          headerShown: false,
           tabBarIcon: ({ color }) => (
             <Ionicons name="chatbubble" size={24} color={color} />
           ),
@@ -53,6 +57,7 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: 'Profile',
+          headerShown: false,
           tabBarIcon: ({ color }) => (
             <Ionicons name="person" size={24} color={color} />
           ),
@@ -62,6 +67,7 @@ export default function TabLayout() {
         name="logout"
         options={{
           title: 'Logout',
+          headerShown: false,
           tabBarIcon: ({ color }) => (
             <Ionicons name="log-out" size={24} color={color} />
           ),

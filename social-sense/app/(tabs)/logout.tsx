@@ -34,8 +34,8 @@ export default function LogoutScreen() {
   const handleSignOut = async () => {
     try {
       await authService.logout();
-      // Use the /auth/login route specifically to avoid any tab confusion
-      router.replace('/(auth)/login');
+      // Use the /auth/login route instead of /(auth)/login to be consistent
+      router.replace('/auth/login');
     } catch (err) {
       console.error('Error signing out:', err);
       Alert.alert('Error', 'Failed to sign out. Please try again.');

@@ -53,15 +53,22 @@ export default function RootLayout() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       {!isLoggedIn ? (
         // User is not logged in, redirect to login
-        <Stack>
-          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="auth" options={{ headerShown: false }} />
           <Stack.Screen name="+not-found" options={{ title: 'Not Found' }} />
           <Stack.Screen name="index" options={{ headerShown: false }} />
         </Stack>
       ) : (
         // User is logged in, show the app
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen 
+            name="(tabs)" 
+            options={{ 
+              headerShown: false,
+              headerTitle: '',
+              title: ''
+            }} 
+          />
           <Stack.Screen name="+not-found" options={{ title: 'Not Found' }} />
         </Stack>
       )}
