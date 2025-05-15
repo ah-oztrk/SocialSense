@@ -6,7 +6,12 @@ from typing import List
 from bson import ObjectId
 from fastapi import Body
 from app.core.auth import get_current_user
+from datetime import datetime
+import logging
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -15,13 +20,16 @@ async def create_history(
         entry: HistoryCreate,
         current_user: dict = Depends(get_current_user)
 ):
+    # Generate a unique history_id if not provided
+    history_id = entry.history_id or f"hist_{current_user['id']}_{int(datetime.now().timestamp())}"
+    logger.info("Generated history_id: %s", history_id)
 
     new_entry = {
         "user_id": current_user["id"],
         "query_set": [],
         "query_number": 0,
-        "history_id": entry.history_id,
-        "assistant_name": entry.assistant_name
+        "assistant_name": entry.assistant_name,
+        "history_id": history_id
     }
     res = await history_collection.insert_one(new_entry)
     new_entry["_id"] = res.inserted_id

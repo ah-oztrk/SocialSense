@@ -16,9 +16,12 @@ async def create_question(
         question: ForumQuestionCreate,
         current_user: dict = Depends(get_current_user)
 ):
+    question_id = question.question_id or f"q_{current_user['id']}_{int(datetime.utcnow().timestamp())}"
+
     # Add user ID from the authenticated user
     new_entry = question.model_dump()
     new_entry["user_id"] = current_user["id"]
+    new_entry["question_id"] = question_id
     new_entry["creation_date"] = datetime.utcnow().isoformat()
 
     res = await forum_question_collection.insert_one(new_entry)
@@ -111,9 +114,12 @@ async def create_answer(
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
 
+    answer_id = answer.answer_id or f"a_{current_user['id']}_{int(datetime.utcnow().timestamp())}"
+
     # Add user ID from the authenticated user
     new_entry = answer.model_dump()
     new_entry["user_id"] = current_user["id"]
+    new_entry["answer_id"] = answer_id
     new_entry["creation_date"] = datetime.utcnow().isoformat()
 
     res = await forum_answer_collection.insert_one(new_entry)

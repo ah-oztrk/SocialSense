@@ -4,7 +4,7 @@ from typing import List, Optional
 
 class HistoryCreate(BaseModel):
     #user_id: str
-    history_id: str
+    history_id: Optional[str] = None
     assistant_name: str
 
 class HistoryUpdate(BaseModel):

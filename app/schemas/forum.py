@@ -5,7 +5,7 @@ from typing import Optional, List
 
 
 class ForumQuestionCreate(BaseModel):
-    question_id: str
+    question_id: Optional[str] = None
     question_header: str
     question: str
 
@@ -41,7 +41,7 @@ class ForumQuestionResponse(BaseModel):
 
 
 class ForumAnswerCreate(BaseModel):
-    answer_id: str
+    answer_id: Optional[str] = None
     question_id: str
     answer: str
 
