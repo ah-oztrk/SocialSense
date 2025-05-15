@@ -177,3 +177,9 @@ async def reset_password(reset_data: PasswordReset):
 async def verify_token(current_user: dict = Depends(get_current_user)):
     """Verify if a token is valid"""
     return {"valid": True}
+
+@router.post("/logout")
+async def logout(current_user: dict = Depends(get_current_user)):
+    """Logout endpoint - this is stateless since we're using JWT,
+    but we can use this endpoint for client-side logout actions"""
+    return {"message": "Successfully logged out"}
