@@ -243,8 +243,47 @@ export const authService = {
 
   // Check if user is logged in
   async isLoggedIn(): Promise<boolean> {
-    const token = await this.getToken();
-    return !!token;
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        return false;
+      }
+
+      // Verify the token is valid by making a test API call
+      try {
+        // Try to verify token with backend but don't fail if network issue
+        await this.verifyToken();
+        return true;
+      } catch (error) {
+        console.error('Error verifying token:', error);
+        
+        // Only clear token on specific errors, not network errors
+        if (error instanceof Error) {
+          // Check if error is a network error, if so, just return true
+          // This allows offline use with existing token
+          if (error.message.includes('Network request failed')) {
+            console.log('Network error, but token exists - continuing session');
+            return true;
+          }
+          
+          // If token is invalid or expired, clear it
+          if (error.message.includes('invalid') || 
+              error.message.includes('expired') || 
+              error.message.includes('401') ||
+              error.message.includes('403')) {
+            await this.removeToken();
+            await this.removeUser();
+            return false;
+          }
+        }
+        
+        // For other errors, keep token but return false to trigger login
+        return false;
+      }
+    } catch (error) {
+      console.error('Error in isLoggedIn:', error);
+      return false;
+    }
   },
 
   // Verify token validity with backend
@@ -253,19 +292,19 @@ export const authService = {
       const token = await this.getToken();
       
       if (!token) {
-        return false;
+        throw new Error('No authentication token found');
       }
       
-      const url = `${API_BASE_URL}/auth/verify-token`;
+      const verifyUrl = `${API_BASE_URL}/auth/verify-token`;
       
       const headers = {
         'Authorization': `Bearer ${token}`,
         'Accept': 'application/json',
       };
       
-      logApiRequest(url, 'GET', headers, null);
+      logApiRequest(verifyUrl, 'GET', headers, null);
       
-      const response = await fetch(url, {
+      const response = await fetch(verifyUrl, {
         method: 'GET',
         headers,
       });
@@ -274,14 +313,13 @@ export const authService = {
       const responseData = await logApiResponse(response);
       
       if (!response.ok) {
-        console.error(`Token verification failed: ${response.status}`);
-        return false;
+        throw new Error(`Invalid token: ${response.status}`);
       }
       
       return true;
     } catch (error) {
       console.error('Error verifying token:', error);
-      return false;
+      throw error;
     }
   },
 

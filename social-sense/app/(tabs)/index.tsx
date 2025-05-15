@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -6,22 +6,56 @@ import {
   ScrollView,
   SafeAreaView,
   useWindowDimensions,
+  ActivityIndicator,
 } from "react-native";
+import { router } from 'expo-router';
+import { authService, User } from '@/services/authService';
 
-type MainPageProps = {
-  username?: string;
-};
-
-export default function MainPage({ username = "User" }: MainPageProps) {
+export default function MainPage() {
   const { width } = useWindowDimensions();
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    try {
+      setLoading(true);
+      const isLoggedIn = await authService.isLoggedIn();
+      
+      if (!isLoggedIn) {
+        // If not logged in, redirect to login page
+        router.replace('/auth/login');
+        return;
+      }
+      
+      const userData = await authService.getUser();
+      setUser(userData);
+    } catch (err) {
+      console.error('Error loading user data:', err);
+      // If there's an error, you might want to redirect to login
+      router.replace('/auth/login');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
 
   return (
-    
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
         <View style={[styles.header, { paddingHorizontal: width * 0.06 }]}>
           <Text style={styles.greeting}>
-            Welcome, <Text style={styles.username}>{username} 👋</Text>
+            Welcome, <Text style={styles.username}>{user?.name || "User"} 👋</Text>
           </Text>
           <Text style={styles.subheading}>This is Social Sense</Text>
         </View>
@@ -29,8 +63,8 @@ export default function MainPage({ username = "User" }: MainPageProps) {
         <View style={styles.body}>
           <Text style={styles.intro}>
             Social Sense is a safe and supportive space designed to help people navigate the social world. Whether
-            it’s understanding social norms, detecting emotions, or simplifying
-            complex communication, we’re here for you!
+            it's understanding social norms, detecting emotions, or simplifying
+            complex communication, we're here for you!
           </Text>
 
           <Text style={styles.sectionHeader}>What can you do here?</Text>
@@ -74,6 +108,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   scrollContent: {
     paddingBottom: 24,
