@@ -189,13 +189,13 @@ export default function AssistScreen() {
 
       <Text style={styles.heading}>Assistants</Text>
       <Text style={styles.subheading}>
-        Choose your assistant and enter your prompt, then use the “ask” button for an answer!
+        Choose your assistant and enter your prompt, then use the "ask" button for an answer!
       </Text>
 
       <View style={styles.dropdownWrapper}>
         <Picker
           selectedValue={assistant}
-          onValueChange={(itemValue) => setAssistant(itemValue)}
+          onValueChange={(itemValue: AssistantType | '') => setAssistant(itemValue)}
           style={styles.picker}
           prompt="Select Assistant"
           mode="dropdown"

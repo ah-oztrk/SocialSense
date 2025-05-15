@@ -1,14 +1,14 @@
 import "./global.css"
+import React from 'react';
+import { AuthProvider } from './contexts/AuthContext';
+import { ExpoRoot } from 'expo-router';
 
-import { View, Text } from 'react-native'
-import React from 'react'
-
-const App = () => {
-    return (
-        <View>
-            <Text>App</Text>
-        </View>
-    )
+export default function App() {
+  const ctx = require.context('./app');
+  
+  return (
+    <AuthProvider>
+      <ExpoRoot context={ctx} />
+    </AuthProvider>
+  );
 }
-
-export default App

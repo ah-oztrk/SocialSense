@@ -11,8 +11,6 @@ router = APIRouter()
 
 
 # Helper function to add username to a document
-# Helper function to add username to a document
-# Helper function to add username to a document
 async def add_username_to_doc(doc):
     if doc and "user_id" in doc:
         try:

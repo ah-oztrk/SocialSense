@@ -7,16 +7,24 @@ import { IconSymbol } from '@/components/ui/IconSymbol';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
-export function Collapsible({ children, title }: PropsWithChildren & { title: string }) {
+export function Collapsible({ children, title, onToggle }: PropsWithChildren & { title: string; onToggle?: () => void }) {
   const [isOpen, setIsOpen] = useState(false);
   const theme = useColorScheme() ?? 'light';
+
+  const handleToggle = () => {
+    setIsOpen((value) => !value);
+    if (onToggle) {
+      onToggle();
+    }
+  };
 
   return (
     <ThemedView>
       <TouchableOpacity
         style={styles.heading}
-        onPress={() => setIsOpen((value) => !value)}
-        activeOpacity={0.8}>
+        onPress={handleToggle}
+        activeOpacity={0.8}
+      >
         <IconSymbol
           name="chevron.right"
           size={18}
@@ -24,7 +32,6 @@ export function Collapsible({ children, title }: PropsWithChildren & { title: st
           color={theme === 'light' ? Colors.light.icon : Colors.dark.icon}
           style={{ transform: [{ rotate: isOpen ? '90deg' : '0deg' }] }}
         />
-
         <ThemedText type="defaultSemiBold">{title}</ThemedText>
       </TouchableOpacity>
       {isOpen && <ThemedView style={styles.content}>{children}</ThemedView>}
