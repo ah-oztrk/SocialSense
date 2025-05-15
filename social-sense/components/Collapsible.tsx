@@ -1,25 +1,28 @@
-import { PropsWithChildren, useState } from 'react';
-import { StyleSheet, TouchableOpacity } from 'react-native';
+import { PropsWithChildren } from 'react';
+import { StyleSheet, TouchableOpacity, View, Text } from 'react-native';
 
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
-export function Collapsible({ children, title, onToggle }: PropsWithChildren & { title: string; onToggle?: () => void }) {
-  const [isOpen, setIsOpen] = useState(false);
+interface CollapsibleProps {
+  children: React.ReactNode;
+  title: string;
+  onToggle?: () => void;
+  isOpen?: boolean;
+}
+
+export function Collapsible({ children, title, onToggle, isOpen = false }: CollapsibleProps) {
   const theme = useColorScheme() ?? 'light';
 
   const handleToggle = () => {
-    setIsOpen((value) => !value);
     if (onToggle) {
       onToggle();
     }
   };
 
   return (
-    <ThemedView>
+    <View style={styles.container}>
       <TouchableOpacity
         style={styles.heading}
         onPress={handleToggle}
@@ -29,24 +32,36 @@ export function Collapsible({ children, title, onToggle }: PropsWithChildren & {
           name="chevron.right"
           size={18}
           weight="medium"
-          color={theme === 'light' ? Colors.light.icon : Colors.dark.icon}
+          color="#007AFF"
           style={{ transform: [{ rotate: isOpen ? '90deg' : '0deg' }] }}
         />
-        <ThemedText type="defaultSemiBold">{title}</ThemedText>
+        <Text style={styles.headingText}>{isOpen ? 'Hide replies...' : 'See replies...'}</Text>
       </TouchableOpacity>
-      {isOpen && <ThemedView style={styles.content}>{children}</ThemedView>}
-    </ThemedView>
+      {isOpen && <View style={styles.content}>{children}</View>}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    backgroundColor: '#fff',
+    marginTop: 8,
+  },
   heading: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    backgroundColor: '#f0f6ff',
+    padding: 6,
+    borderRadius: 6,
+  },
+  headingText: {
+    fontWeight: '600',
+    color: '#333',
   },
   content: {
     marginTop: 6,
     marginLeft: 24,
+    backgroundColor: '#fff',
   },
 });

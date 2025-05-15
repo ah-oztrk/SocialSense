@@ -1,16 +1,43 @@
-import { StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, View, Dimensions, RefreshControl, TouchableOpacity } from 'react-native';
-import { useState, useEffect, useCallback } from 'react';
+import { StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, View, Dimensions, RefreshControl, TouchableOpacity, Text, Modal } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
 import { router } from 'expo-router';
 
 import { Collapsible } from '@/components/Collapsible';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import { forumService, Question, Answer } from '@/services/forumService';
 import { authService } from '@/services/authService';
 import { API_BASE_URL } from '@/constants/Config';
 
 const { width } = Dimensions.get('window');
+
+// Format date function to keep it consistent
+const formatDate = (dateString: string): string => {
+  return new Date(dateString).toLocaleString('en-US', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
+
+// Define sort options
+type SortOption = {
+  id: string;
+  label: string;
+  description?: string;
+};
+
+const sortOptions: SortOption[] = [
+  { id: 'default', label: 'Default', description: 'Default forum view' },
+  { id: 'newest', label: 'Newest First', description: 'Show newest questions at the top' },
+  { id: 'oldest', label: 'Oldest First', description: 'Show oldest questions at the top' },
+  { id: 'most_replies', label: 'Most Replies', description: 'Questions with most answers first' },
+  { id: 'recent_activity', label: 'Recent Activity', description: 'Recently answered questions first' },
+  { id: 'alphabetical', label: 'A to Z', description: 'Sort questions alphabetically' },
+  { id: 'your_questions', label: 'Your Questions', description: 'Show only questions you posted' },
+];
 
 export default function ForumScreen() {
   const [showQuestionForm, setShowQuestionForm] = useState(false);
@@ -28,6 +55,9 @@ export default function ForumScreen() {
   const [replyLoading, setReplyLoading] = useState<{ [key: string]: boolean }>({});
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [showDebug, setShowDebug] = useState(false);
+  const [sortBy, setSortBy] = useState<string>('default');
+  const [showSortModal, setShowSortModal] = useState(false);
+  const [currentUserID, setCurrentUserID] = useState<string | null>(null);
 
   const checkAuth = async () => {
     try {
@@ -62,6 +92,9 @@ export default function ForumScreen() {
           fetchedQuestions = await forumService.getQuestions();
         }
         
+        // Sort questions based on selected sort option
+        sortQuestionsByPreference(fetchedQuestions);
+        
         // Successfully fetched questions (even if empty array)
         setQuestions(fetchedQuestions);
         setError(null);
@@ -89,6 +122,8 @@ export default function ForumScreen() {
         for (const question of fetchedQuestions) {
           try {
             const questionAnswers = await forumService.getQuestionAnswers(question.question_id);
+            // Sort answers based on selected sort option
+            sortAnswersByPreference(questionAnswers);
             answersMap[question.question_id] = questionAnswers;
           } catch (err) {
             console.error(`Error loading answers for question ${question.question_id}:`, err);
@@ -106,6 +141,108 @@ export default function ForumScreen() {
       setRefreshing(false);
     }
   };
+
+  // Function to sort questions based on user preference
+  const sortQuestionsByPreference = (questionsArray: Question[]) => {
+    // Filter questions first if using your_questions filter
+    let filteredQuestions = [...questionsArray];
+    if (sortBy === 'your_questions' && currentUserID) {
+      filteredQuestions = filteredQuestions.filter(q => q.user_id === currentUserID);
+    }
+    
+    // Then apply sorting
+    if (sortBy === 'default' || sortBy === 'newest') {
+      filteredQuestions.sort((a, b) => {
+        return new Date(b.creation_date).getTime() - new Date(a.creation_date).getTime();
+      });
+    } else if (sortBy === 'oldest') {
+      filteredQuestions.sort((a, b) => {
+        return new Date(a.creation_date).getTime() - new Date(b.creation_date).getTime();
+      });
+    } else if (sortBy === 'most_replies') {
+      // Sort by number of replies
+      filteredQuestions.sort((a, b) => {
+        const repliesA = answers[a.question_id]?.length || 0;
+        const repliesB = answers[b.question_id]?.length || 0;
+        return repliesB - repliesA; // Most replies first
+      });
+    } else if (sortBy === 'recent_activity') {
+      // Sort by the most recent reply or post date
+      filteredQuestions.sort((a, b) => {
+        // Find most recent reply for question A
+        const latestReplyA = answers[a.question_id]?.length ? 
+          Math.max(...answers[a.question_id].map(ans => new Date(ans.creation_date).getTime())) : 
+          0;
+        
+        // Find most recent reply for question B
+        const latestReplyB = answers[b.question_id]?.length ? 
+          Math.max(...answers[b.question_id].map(ans => new Date(ans.creation_date).getTime())) : 
+          0;
+        
+        // Get creation dates as timestamps
+        const creationDateA = new Date(a.creation_date).getTime();
+        const creationDateB = new Date(b.creation_date).getTime();
+        
+        // Use the most recent activity (either post or reply)
+        const mostRecentA = Math.max(latestReplyA, creationDateA);
+        const mostRecentB = Math.max(latestReplyB, creationDateB);
+        
+        return mostRecentB - mostRecentA; // Most recent activity first
+      });
+    } else if (sortBy === 'alphabetical') {
+      // Sort alphabetically by title
+      filteredQuestions.sort((a, b) => {
+        return (a.question_header || '').localeCompare(b.question_header || '');
+      });
+    }
+    
+    return filteredQuestions;
+  };
+
+  // Function to sort answers based on user preference
+  const sortAnswersByPreference = (answersArray: Answer[]) => {
+    if (sortBy === 'default' || sortBy === 'newest') {
+      answersArray.sort((a, b) => {
+        return new Date(b.creation_date).getTime() - new Date(a.creation_date).getTime();
+      });
+    } else if (sortBy === 'oldest') {
+      answersArray.sort((a, b) => {
+        return new Date(a.creation_date).getTime() - new Date(b.creation_date).getTime();
+      });
+    }
+    return answersArray;
+  };
+
+  // Get current user ID on load
+  useEffect(() => {
+    const getUserInfo = async () => {
+      try {
+        const userData = await authService.getUser();
+        if (userData) {
+          setCurrentUserID(userData.id);
+        }
+      } catch (err) {
+        console.error('Error getting user info:', err);
+      }
+    };
+    
+    getUserInfo();
+  }, []);
+
+  // Apply sorting when sort preference changes
+  useEffect(() => {
+    if (questions.length > 0) {
+      const sorted = sortQuestionsByPreference([...questions]);
+      setQuestions(sorted);
+
+      // Also re-sort answers
+      const newAnswersMap = { ...answers };
+      Object.keys(newAnswersMap).forEach(questionId => {
+        newAnswersMap[questionId] = sortAnswersByPreference([...newAnswersMap[questionId]]);
+      });
+      setAnswers(newAnswersMap);
+    }
+  }, [sortBy]);
 
   const createSampleQuestion = async () => {
     try {
@@ -144,6 +281,8 @@ export default function ForumScreen() {
       setPosting(true);
       setError(null);
       const postedQuestion = await forumService.postQuestion(questionTitle, questionContent);
+      
+      // Add the new question at the beginning of the array (top of the list)
       setQuestions(prev => [postedQuestion, ...prev]);
       setAnswers(prev => ({ ...prev, [postedQuestion.question_id]: [] }));
       setQuestionTitle('');
@@ -191,76 +330,83 @@ export default function ForumScreen() {
   };
 
   const renderQuestion = (question: Question) => {
+    // Get a clean username for display - either use the actual username or make a clean user ID
+    const displayUsername = question.username || 
+      (question.user_id ? `User ${question.user_id.substring(0, 6)}...` : 'Unknown');
+    
     const isExpanded = expandedReplies[question.question_id] || false;
+    
     return (
-      <Pressable key={question.question_id} style={styles.questionItem}>
+      <Pressable
+        key={question.question_id}
+        style={styles.questionItem}
+        onPress={() => toggleReplies(question.question_id)}
+      >
         <View style={styles.questionContent}>
-          <ThemedText style={styles.questionTitle}>{question.question_header || 'Untitled Question'}</ThemedText>
-          <ThemedText numberOfLines={2} style={styles.questionText}>{question.question}</ThemedText>
-          <View style={styles.questionMetaContainer}>
-            <ThemedText style={styles.authorText}>
-              Posted by {question.username || `User ${question.user_id}`}
-            </ThemedText>
-            <ThemedText style={styles.timestampText}>
-              {new Date(question.creation_date).toLocaleString('en-US', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true,
-                timeZone: 'Asia/Istanbul',
-              })}
-            </ThemedText>
+          <View>
+            <Text style={styles.questionTitle}>{question.question_header}</Text>
+            <Text style={styles.questionText}>{question.question}</Text>
           </View>
+
+          <View style={styles.questionMetaContainer}>
+            <Text style={styles.authorText}>
+              Posted by {displayUsername}
+            </Text>
+            <Text style={styles.timestampText}>
+              {formatDate(question.creation_date)}
+            </Text>
+          </View>
+
           <Collapsible
             title={isExpanded ? 'Hide replies...' : 'See replies...'}
             onToggle={() => toggleReplies(question.question_id)}
+            isOpen={isExpanded}
           >
-            {answers[question.question_id]?.length > 0 ? (
-              answers[question.question_id].map((answer) => (
-                <ThemedView key={answer.answer_id} style={styles.replyItem}>
-                  <ThemedText>{answer.answer}</ThemedText>
-                  <View style={styles.replyMeta}>
-                    <ThemedText style={styles.authorText}>
-                      Posted by {answer.username || `User ${answer.user_id}`}
-                    </ThemedText>
-                    <ThemedText style={styles.timestampText}>
-                      {new Date(answer.creation_date).toLocaleString('en-US', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: true,
-                        timeZone: 'Asia/Istanbul',
-                      })}
-                    </ThemedText>
-                  </View>
-                </ThemedView>
-              ))
-            ) : (
-              <ThemedText>No replies yet.</ThemedText>
-            )}
-            <View style={styles.replyInputContainer}>
-              <TextInput
-                style={styles.replyInput}
-                value={replyInputs[question.question_id] || ''}
-                onChangeText={(text) => setReplyInputs(prev => ({ ...prev, [question.question_id]: text }))}
-                placeholder="Type your reply..."
-                multiline
-              />
-              <Pressable
-                style={[styles.replyButton, !replyInputs[question.question_id]?.trim() && styles.replyButtonDisabled]}
-                onPress={() => handlePostReply(question.question_id)}
-                disabled={!replyInputs[question.question_id]?.trim() || replyLoading[question.question_id]}
-              >
-                {replyLoading[question.question_id] ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <ThemedText style={styles.replyButtonText}>Post Reply</ThemedText>
-                )}
-              </Pressable>
+            <View style={styles.repliesContainer}>
+              {answers[question.question_id]?.length > 0 ? (
+                answers[question.question_id].map((answer) => {
+                  // Get a clean username for the reply
+                  const replyUsername = answer.username || 
+                    (answer.user_id ? `User ${answer.user_id.substring(0, 6)}...` : 'Unknown');
+                    
+                  return (
+                    <View key={answer.answer_id} style={styles.replyItem}>
+                      <Text style={styles.replyText}>{answer.answer}</Text>
+                      <View style={styles.replyMeta}>
+                        <Text style={styles.authorText}>
+                          Reply by {replyUsername}
+                        </Text>
+                        <Text style={styles.timestampText}>
+                          {formatDate(answer.creation_date)}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })
+              ) : (
+                <Text style={[styles.authorText, {marginVertical: 10}]}>No replies yet. Be the first to respond!</Text>
+              )}
+
+              <View style={styles.replyInputContainer}>
+                <TextInput
+                  style={styles.replyInput}
+                  value={replyInputs[question.question_id] || ''}
+                  onChangeText={(text) => setReplyInputs(prev => ({ ...prev, [question.question_id]: text }))}
+                  placeholder="Type your reply..."
+                  multiline
+                />
+                <Pressable
+                  style={[styles.replyButton, !replyInputs[question.question_id]?.trim() && styles.replyButtonDisabled]}
+                  onPress={() => handlePostReply(question.question_id)}
+                  disabled={!replyInputs[question.question_id]?.trim() || replyLoading[question.question_id]}
+                >
+                  {replyLoading[question.question_id] ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.replyButtonText}>Post Reply</Text>
+                  )}
+                </Pressable>
+              </View>
             </View>
           </Collapsible>
         </View>
@@ -300,46 +446,46 @@ export default function ForumScreen() {
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
-          colors={['#6B4EFF']}
+          colors={['#007AFF']}
         />
       }
     >
-      <ThemedView style={styles.header}>
+      <View style={styles.header}>
         <View style={styles.headerContent}>
-          <ThemedText style={styles.title}>Forum</ThemedText>
-          <ThemedText style={styles.subtitle}>
+          <Text style={styles.title}>Forum</Text>
+          <Text style={styles.subtitle}>
             Ask a question to the fellow Sensers or answer other asks!
-          </ThemedText>
+          </Text>
         </View>
-      </ThemedView>
+      </View>
 
       {error && (
-        <ThemedView style={styles.errorContainer}>
-          <ThemedText style={styles.errorText}>{error}</ThemedText>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
           <View style={styles.buttonRow}>
             <Pressable style={styles.retryButton} onPress={() => loadQuestions()}>
-              <ThemedText style={styles.retryButtonText}>Retry</ThemedText>
+              <Text style={styles.retryButtonText}>Retry</Text>
             </Pressable>
             
             <Pressable style={styles.debugButton} onPress={checkDatabaseStatus}>
-              <ThemedText style={styles.debugButtonText}>Diagnose</ThemedText>
+              <Text style={styles.debugButtonText}>Diagnose</Text>
             </Pressable>
           </View>
-        </ThemedView>
+        </View>
       )}
 
       {showDebug && debugInfo && (
-        <ThemedView style={styles.debugContainer}>
-          <ThemedText style={styles.debugTitle}>Backend Status</ThemedText>
+        <View style={styles.debugContainer}>
+          <Text style={styles.debugTitle}>Backend Status</Text>
           <ScrollView style={styles.debugScroll}>
-            <ThemedText style={styles.debugText}>
+            <Text style={styles.debugText}>
               {JSON.stringify(debugInfo, null, 2)}
-            </ThemedText>
+            </Text>
           </ScrollView>
           <Pressable style={styles.closeButton} onPress={() => setShowDebug(false)}>
-            <ThemedText style={styles.closeButtonText}>Close</ThemedText>
+            <Text style={styles.closeButtonText}>Close</Text>
           </Pressable>
-        </ThemedView>
+        </View>
       )}
 
       <View style={styles.buttonContainer}>
@@ -347,25 +493,25 @@ export default function ForumScreen() {
           style={styles.createQuestionButton}
           onPress={() => setShowQuestionForm(!showQuestionForm)}
         >
-          <IconSymbol size={20} name="plus.circle" color="#6B4EFF" />
-          <ThemedText style={styles.createQuestionText}>
+          <IconSymbol size={20} name="plus.circle" color="#FFFFFF" />
+          <Text style={styles.createQuestionText}>
             {showQuestionForm ? 'Cancel' : 'Create New Question'}
-          </ThemedText>
+          </Text>
         </Pressable>
 
         <Pressable 
           style={styles.historyButton}
           onPress={() => setShowMyQuestions(!showMyQuestions)}
         >
-          <IconSymbol size={20} name="clock.circle" color="#6B4EFF" />
-          <ThemedText style={styles.historyText}>
+          <IconSymbol size={20} name="clock.circle" color="#FFFFFF" />
+          <Text style={styles.historyText}>
             {showMyQuestions ? 'All Questions' : 'Your Interaction History'}
-          </ThemedText>
+          </Text>
         </Pressable>
       </View>
 
       {showQuestionForm && (
-        <ThemedView style={styles.questionForm}>
+        <View style={styles.questionForm}>
           <TextInput
             style={styles.formInput}
             value={questionTitle}
@@ -387,24 +533,39 @@ export default function ForumScreen() {
             {posting ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <ThemedText style={styles.postButtonText}>Post Question</ThemedText>
+              <Text style={styles.postButtonText}>Post Question</Text>
             )}
           </Pressable>
-        </ThemedView>
+        </View>
       )}
 
-      <ThemedView style={styles.questionsContainer}>
+      <View style={styles.questionsContainer}>
         {loading && !questions.length ? (
-          <ActivityIndicator size="large" color="#6B4EFF" />
+          <ActivityIndicator size="large" color="#007AFF" />
         ) : questions.length > 0 ? (
-          questions.map(renderQuestion)
+          <>
+            <TouchableOpacity 
+              style={styles.sortButton}
+              onPress={() => setShowSortModal(true)}
+            >
+              <Text style={styles.sortButtonText}>
+                Sort: {sortOptions.find(option => option.id === sortBy)?.label}
+              </Text>
+              <IconSymbol name="chevron.down" size={14} color="#007AFF" />
+            </TouchableOpacity>
+            {questions.map((question) => (
+              <React.Fragment key={question.question_id}>
+                {renderQuestion(question)}
+              </React.Fragment>
+            ))}
+          </>
         ) : (
           <View style={styles.emptyContainer}>
-            <ThemedText style={styles.emptyText}>
+            <Text style={styles.emptyText}>
               {showMyQuestions 
                 ? "You haven't asked any questions yet." 
                 : "No questions have been asked yet. Be the first!"}
-            </ThemedText>
+            </Text>
             
             {!showMyQuestions && (
               <TouchableOpacity 
@@ -415,13 +576,65 @@ export default function ForumScreen() {
                 {posting ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <ThemedText style={styles.sampleButtonText}>Create Sample Question</ThemedText>
+                  <Text style={styles.sampleButtonText}>Create Sample Question</Text>
                 )}
               </TouchableOpacity>
             )}
           </View>
         )}
-      </ThemedView>
+      </View>
+
+      {/* Sort Modal */}
+      <Modal
+        visible={showSortModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowSortModal(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowSortModal(false)}
+        >
+          <View style={styles.sortModal}>
+            <Text style={styles.sortModalTitle}>Sort Questions</Text>
+            {sortOptions.map(option => (
+              <TouchableOpacity
+                key={option.id}
+                style={[
+                  styles.sortOption,
+                  sortBy === option.id && styles.sortOptionSelected
+                ]}
+                onPress={() => {
+                  setSortBy(option.id);
+                  // If toggling your questions option and showMyQuestions is true, reset it
+                  if (option.id === 'your_questions') {
+                    setShowMyQuestions(false);
+                  }
+                  setShowSortModal(false);
+                }}
+              >
+                <View>
+                  <Text style={[
+                    styles.sortOptionText,
+                    sortBy === option.id && styles.sortOptionTextSelected
+                  ]}>
+                    {option.label}
+                  </Text>
+                  {option.description && (
+                    <Text style={[
+                      styles.sortOptionDescription,
+                      sortBy === option.id && styles.sortOptionDescriptionSelected
+                    ]}>
+                      {option.description}
+                    </Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </ScrollView>
   );
 }
@@ -554,6 +767,7 @@ const styles = StyleSheet.create({
   questionsContainer: {
     gap: 15,
     paddingHorizontal: 16,
+    backgroundColor: '#fff',
   },
   questionItem: {
     flexDirection: 'row',
@@ -571,11 +785,13 @@ const styles = StyleSheet.create({
   },
   questionContent: {
     flex: 1,
+    backgroundColor: '#f0f6ff',
   },
   questionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 5,
+    color: '#333',
   },
   questionText: {
     fontSize: 14,
@@ -586,6 +802,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    backgroundColor: '#f0f6ff',
   },
   authorText: {
     fontSize: 12,
@@ -594,6 +811,14 @@ const styles = StyleSheet.create({
   timestampText: {
     fontSize: 12,
     color: '#808080',
+  },
+  repliesContainer: {
+    backgroundColor: '#fff',
+    padding: 5,
+    borderRadius: 8,
+  },
+  replyText: {
+    color: '#333',
   },
   replyItem: {
     padding: 12,
@@ -607,6 +832,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 4,
+    backgroundColor: '#f0f6ff',
   },
   replyInputContainer: {
     marginTop: 12,
@@ -673,6 +899,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
+    backgroundColor: '#fff',
   },
   emptyText: {
     fontSize: 18,
@@ -721,13 +948,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 10,
+    color: '#333',
   },
   debugScroll: {
     maxHeight: 300,
+    backgroundColor: '#fff',
   },
   debugText: {
     fontSize: 12,
     fontFamily: 'monospace',
+    color: '#333',
   },
   closeButton: {
     backgroundColor: '#607D8B',
@@ -741,5 +971,73 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '600',
+  },
+  sortButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f0f6ff',
+    padding: 10,
+    borderRadius: 8,
+    marginVertical: 10,
+    alignSelf: 'center',
+    borderWidth: 1,
+    borderColor: '#007AFF',
+  },
+  sortButtonText: {
+    fontSize: 14,
+    color: '#007AFF',
+    fontWeight: '600',
+    marginRight: 5,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sortModal: {
+    backgroundColor: '#fff',
+    width: width * 0.8,
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  sortModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  sortOption: {
+    padding: 15,
+    borderRadius: 8,
+    marginVertical: 6,
+    backgroundColor: '#f0f6ff',
+  },
+  sortOptionSelected: {
+    backgroundColor: '#007AFF',
+  },
+  sortOptionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    textAlign: 'left',
+  },
+  sortOptionTextSelected: {
+    color: '#fff',
+  },
+  sortOptionDescription: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  sortOptionDescriptionSelected: {
+    color: 'rgba(255, 255, 255, 0.8)',
   },
 });
