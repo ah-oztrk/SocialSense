@@ -1,109 +1,237 @@
-import { StyleSheet, Image, Platform } from 'react-native';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  StatusBar,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  Platform,
+  useColorScheme,
+  Dimensions,
+} from 'react-native';
+import { Picker } from '@react-native-picker/picker';
+import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 
-import { Collapsible } from '@/components/Collapsible';
-import { ExternalLink } from '@/components/ExternalLink';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
-import { IconSymbol } from '@/components/ui/IconSymbol';
+// Get screen dimensions for responsive tweaks
+const { width: screenWidth } = Dimensions.get('window');
 
-export default function TabTwoScreen() {
+export default function AssistScreen() {
+  const navigation = useNavigation();
+  const isDark = false;
+
+  //const [assistant, setAssistant] = useState('');
+  const [query, setQuery] = useState('');
+  const [response, setResponse] = useState('');
+
+  const options = [
+    { label: 'Text Simplification', value: 'textSimplification' },
+    { label: 'Emotion Detection', value: 'emotiondetection' },
+    { label: 'Norm Analysis', value: 'socialNorm' },
+  ];
+
+  type AssistantType = 'textSimplification' | 'emotiondetection' | 'socialNorm';
+  const [assistant, setAssistant] = useState<AssistantType | ''>('');
+
+  const handleSubmit = async () => {
+  if (!assistant || !query.trim()) {
+    setResponse('Please select an assistant and enter a prompt.');
+    return;
+  }
+
+
+  const modelMap: Record<AssistantType, string> = {
+  textSimplification: 'textSimplification',
+  emotiondetection: 'emotiondetection',
+  socialNorm: 'socialNorm',
+};
+
+
+  try {
+    setResponse('Loading...');
+
+    
+    const user_id = 'user456';     // <-- Replace with dynamic user ID
+    const history_id = "hist002";  // <-- Replace with dynamic history ID
+
+    const res = await fetch('https://2dba-159-20-69-20.ngrok-free.app/query/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query,
+        model_name: modelMap[assistant as AssistantType],
+      }),
+    });
+
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.detail || 'Unknown error occurred');
+    }
+
+    const data = await res.json();
+    setResponse(data.response);
+  } catch (error: any) {
+    console.error('API error:', error);
+    setResponse(`Error: ${error.message}`);
+  }
+};
+
+
+  const styles = StyleSheet.create({
+    container: {
+      paddingHorizontal: screenWidth < 360 ? 12 : 20,
+      paddingTop: 40,
+      paddingBottom: 30,
+      flexGrow: 1,
+      backgroundColor: isDark ? '#000' : '#fff',
+    },
+    backButton: {
+      position: 'absolute',
+      top: 40,
+      left: 20,
+      zIndex: 1,
+    },
+    heading: {
+      fontSize: screenWidth < 360 ? 24 : 28,
+      fontWeight: 'bold',
+      color: isDark ? '#fff' : '#000',
+      marginTop: 40,
+      marginBottom: 10,
+      alignSelf: 'center',
+    },
+    subheading: {
+      fontSize: 16,
+      color: isDark ? '#ccc' : '#333',
+      textAlign: 'center',
+      marginBottom: 20,
+    },
+    dropdownWrapper: {
+      borderWidth: 1,
+      borderColor: isDark ? '#888' : '#007AFF',
+      borderRadius: 10,
+      marginBottom: 16,
+      backgroundColor: isDark ? '#1a1a1a' : '#fff',
+      overflow: 'hidden',
+      minHeight: 50,
+      justifyContent: 'center',
+    },
+    picker: {
+      flex: 1,
+      color: isDark ? '#00AFFF' : '#007AFF',
+      fontSize: 16,
+      backgroundColor: isDark ? '#1a1a1a' : '#fff',
+    },
+    historyButton: {
+      alignSelf: 'flex-end',
+      backgroundColor: isDark ? '#3d3d6b' : '#E5E5FF',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 20,
+      marginBottom: 12,
+    },
+    historyText: {
+      color: isDark ? '#cfcaff' : '#6B4EFF',
+      fontWeight: '600',
+    },
+    label: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: isDark ? '#fff' : '#333',
+      marginBottom: 6,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: isDark ? '#888' : '#007AFF',
+      borderRadius: 10,
+      padding: 12,
+      minHeight: 100,
+      textAlignVertical: 'top',
+      marginBottom: 16,
+      fontSize: 15,
+      color: isDark ? '#fff' : '#000',
+      backgroundColor: isDark ? '#1a1a1a' : '#fff',
+    },
+    askButton: {
+      backgroundColor: '#007AFF',
+      borderRadius: 10,
+      paddingVertical: 14,
+      alignItems: 'center',
+      marginBottom: 20,
+    },
+    askButtonText: {
+      color: '#fff',
+      fontSize: 17,
+      fontWeight: 'bold',
+    },
+    responseBox: {
+      borderWidth: 1,
+      borderColor: isDark ? '#444' : '#ccc',
+      borderRadius: 10,
+      padding: 12,
+      minHeight: 100,
+      textAlignVertical: 'top',
+      backgroundColor: isDark ? '#1a1a1a' : '#F9F9F9',
+      fontSize: 15,
+      color: isDark ? '#fff' : '#000',
+    },
+  });
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Explore</ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image source={require('@/assets/images/react-logo.png')} style={{ alignSelf: 'center' }} />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Custom fonts">
-        <ThemedText>
-          Open <ThemedText type="defaultSemiBold">app/_layout.tsx</ThemedText> to see how to load{' '}
-          <ThemedText style={{ fontFamily: 'SpaceMono' }}>
-            custom fonts such as this one.
-          </ThemedText>
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/versions/latest/sdk/font">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user's current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful <ThemedText type="defaultSemiBold">react-native-reanimated</ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+    <ScrollView contentContainerStyle={styles.container}>
+      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <Ionicons name="arrow-back" size={24} color={isDark ? '#fff' : 'black'} />
+      </TouchableOpacity>
+
+      <Text style={styles.heading}>Assistants</Text>
+      <Text style={styles.subheading}>
+        Choose your assistant and enter your prompt, then use the "ask" button for an answer!
+      </Text>
+
+      <View style={styles.dropdownWrapper}>
+        <Picker
+          selectedValue={assistant}
+          onValueChange={(itemValue: AssistantType | '') => setAssistant(itemValue)}
+          style={styles.picker}
+          prompt="Select Assistant"
+          mode="dropdown"
+        >
+          {!assistant && (
+            <Picker.Item label="Select Assistant" value="" enabled={false} />
+          )}
+          {options.map((opt) => (
+            <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
+          ))}
+        </Picker>
+      </View>
+
+      <Text style={styles.label}>Your Question</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Enter your prompt here..."
+        placeholderTextColor={isDark ? '#aaa' : '#999'}
+        value={query}
+        onChangeText={setQuery}
+        multiline
+      />
+
+      <Pressable style={styles.askButton} onPress={handleSubmit}>
+        <Text style={styles.askButtonText}>Ask!</Text>
+      </Pressable>
+
+      <TextInput
+        style={styles.responseBox}
+        editable={false}
+        multiline
+        value={response || 'The generated answer will appear here...'}
+        placeholderTextColor={isDark ? '#aaa' : '#999'}
+      />
+
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+    </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
-  },
-  titleContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-});
