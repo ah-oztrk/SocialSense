@@ -1,3 +1,4 @@
+// ... importlar (aynı kalıyor)
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -14,12 +15,10 @@ import {
 import { userService, UserUpdateData } from '@/services/userService';
 import DefaultAvatar from '../../assets/images/PngItem_6490124.png';
 import { Picker } from '@react-native-picker/picker';
-import { router } from 'expo-router';
 import { historyService, History } from '@/services/historyService';
-
+import { queryService } from '@/services/queryService';
 
 const { width } = Dimensions.get('window');
-
 const genderOptions = ['Male', 'Female', 'Non-Binary', 'Prefer Not to Say'];
 
 export default function ProfileScreen() {
@@ -31,6 +30,7 @@ export default function ProfileScreen() {
 
   const [histories, setHistories] = useState<History[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [queriesByHistory, setQueriesByHistory] = useState<{ [key: string]: any[] }>({});
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -56,6 +56,17 @@ export default function ProfileScreen() {
       try {
         const data = await historyService.getUserHistories();
         setHistories(data);
+
+        const queriesMap: { [key: string]: any[] } = {};
+        for (const history of data) {
+          const queryPromises = history.query_set.map((qid) =>
+            queryService.getQueryById(qid).catch(() => null)
+          );
+          const queries = (await Promise.all(queryPromises)).filter(Boolean);
+          queriesMap[history.history_id] = queries;
+        }
+
+        setQueriesByHistory(queriesMap);
       } catch (err) {
         console.error('Error fetching histories:', err);
       } finally {
@@ -64,9 +75,8 @@ export default function ProfileScreen() {
     };
 
     fetchUserData();
-    fetchHistories(); // 💡 Burası eksikti
+    fetchHistories();
   }, []);
-
 
   const handleUpdate = async () => {
     setUpdating(true);
@@ -106,7 +116,6 @@ export default function ProfileScreen() {
           />
           <Text style={styles.username}>{user.username}</Text>
           <Text style={styles.email}>{user.email}</Text>
-
           {user.age ? <Text style={styles.info}>Age: {user.age}</Text> : null}
           {user.gender ? <Text style={styles.info}>Gender: {user.gender}</Text> : null}
         </View>
@@ -125,47 +134,37 @@ export default function ProfileScreen() {
               value={editData.username}
               onChangeText={(text) => setEditData((prev) => ({ ...prev, username: text }))}
             />
-
             <Text style={styles.label}>Email</Text>
             <TextInput
               style={styles.input}
               value={editData.email}
               onChangeText={(text) => setEditData((prev) => ({ ...prev, email: text }))}
             />
-
             <Text style={styles.label}>Name</Text>
             <TextInput
               style={styles.input}
               value={editData.name}
               onChangeText={(text) => setEditData((prev) => ({ ...prev, name: text }))}
             />
-
             <Text style={styles.label}>Age</Text>
             <TextInput
               style={styles.input}
               keyboardType="numeric"
               value={editData.age?.toString()}
-              onChangeText={(text) =>
-                setEditData((prev) => ({ ...prev, age: parseInt(text) || 0 }))
-              }
+              onChangeText={(text) => setEditData((prev) => ({ ...prev, age: parseInt(text) || 0 }))}
             />
-
             <Text style={styles.label}>Gender</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={editData.gender}
-                  onValueChange={(value) =>
-                    setEditData((prev) => ({ ...prev, gender: value }))
-                  }
-                  style={styles.picker}
-                >
-                  {genderOptions.map((option) => (
-                    <Picker.Item key={option} label={option} value={option} />
-                  ))}
-                </Picker>
-              </View>
-
-
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={editData.gender}
+                onValueChange={(value) => setEditData((prev) => ({ ...prev, gender: value }))}
+                style={styles.picker}
+              >
+                {genderOptions.map((option) => (
+                  <Picker.Item key={option} label={option} value={option} />
+                ))}
+              </Picker>
+            </View>
             <Pressable style={styles.updateButton} onPress={handleUpdate} disabled={updating}>
               {updating ? (
                 <ActivityIndicator color="#fff" />
@@ -173,36 +172,96 @@ export default function ProfileScreen() {
                 <Text style={styles.updateButtonText}>Save Changes</Text>
               )}
             </Pressable>
-
             <Pressable onPress={() => setEditing(false)}>
               <Text style={styles.cancelText}>Cancel</Text>
             </Pressable>
-
           </View>
-
         )}
 
-      <Text style={styles.sectionTitle}>Your Histories</Text>
+        <Text style={styles.sectionTitle}>Your Past Queries</Text>
 
-      {historyLoading ? (
-        <ActivityIndicator size="small" color="#007AFF" />
-      ) : histories.length === 0 ? (
-        <Text style={styles.noHistoryText}>You have no history yet.</Text>
-      ) : (
-        histories.map((history) => (
-          <View key={history.history_id} style={styles.historyItem}>
-            <Text style={styles.historyTitle}>{history.assistant_name}</Text>
-            <Text style={styles.historyDetail}>
-              Queries: {history.query_number} • History ID: {history.history_id}
-            </Text>
-          </View>
-        ))
-      )}
+        {historyLoading ? (
+          <ActivityIndicator size="small" color="#007AFF" />
+        ) : histories.length === 0 ? (
+          <Text style={styles.noHistoryText}>You have no history yet.</Text>
+        ) : (
+          histories.map((history) => (
+            <View key={history.history_id} style={styles.historyItem}>
+              {queriesByHistory[history.history_id]?.map((query) => (
+                <View key={query.id} style={styles.queryBox}>
+                  <Text style={styles.queryText}>🧠 {query.query}</Text>
+                  <Text style={styles.responseText}>💬 {query.response}</Text>
+                  <View style={{ marginTop: 8, alignItems: 'flex-end' }}>
+                    <Pressable
+                      onPress={async () => {
+                        try {
+                          await historyService.removeQueryFromHistory(history.history_id, query.id);
+                          const updatedHistories = await historyService.getUserHistories();
+                          setHistories(updatedHistories);
 
+                          const updatedQueriesMap: { [key: string]: any[] } = {};
+                          for (const h of updatedHistories) {
+                            const queryPromises = h.query_set.map((qid) =>
+                              queryService.getQueryById(qid).catch(() => null)
+                            );
+                            const queries = (await Promise.all(queryPromises)).filter(Boolean);
+                            updatedQueriesMap[h.history_id] = queries;
+                          }
+                          setQueriesByHistory(updatedQueriesMap);
+                        } catch (err) {
+                          console.error('Error removing query:', err);
+                          Alert.alert('Error', 'Failed to remove query.');
+                        }
+                      }}
+                    >
+                      <Text style={{ color: 'red', fontSize: 13 }}>Remove Query</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ))}
+            </View>
+          ))
+        )}
+
+        {/* Clear All History Button */}
+        {histories.length > 0 && (
+          <Pressable
+            style={[styles.updateButton, { backgroundColor: 'red', marginTop: 30 }]}
+            onPress={async () => {
+              Alert.alert(
+                'Confirm',
+                'Are you sure you want to clear all history?',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Yes',
+                    style: 'destructive',
+                    onPress: async () => {
+                      try {
+                        for (const h of histories) {
+                          await historyService.deleteHistory(h.history_id);
+                        }
+                        setHistories([]);
+                        setQueriesByHistory({});
+                        Alert.alert('Success', 'All history cleared.');
+                      } catch (err) {
+                        console.error('Error clearing history:', err);
+                        Alert.alert('Error', 'Failed to clear history.');
+                      }
+                    },
+                  },
+                ]
+              );
+            }}
+          >
+            <Text style={styles.updateButtonText}>Clear All History</Text>
+          </Pressable>
+        )}
       </ScrollView>
     </>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
@@ -211,7 +270,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   header: {
-    backgroundColor: '#007AFF', // Mavi ton
+    backgroundColor: '#007AFF',
     paddingTop: 50,
     paddingBottom: 20,
     paddingHorizontal: 20,
@@ -228,16 +287,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 30,
   },
- avatar: {
-  width: 90,
-  height: 90,
-  borderRadius: 45, // dairesel
-  marginBottom: 12,
-  borderWidth: 2,
-  borderColor: '#007AFF',
-  backgroundColor: '#f0f0f0',
-  resizeMode: 'cover', // içeriği düzgün kırpar
-},
+  avatar: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: '#007AFF',
+    backgroundColor: '#f0f0f0',
+    resizeMode: 'cover',
+  },
   username: {
     fontSize: 22,
     fontWeight: '700',
@@ -254,11 +313,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   updateButton: {
+    marginTop: 1,
     backgroundColor: '#007AFF',
     padding: 12,
     borderRadius: 10,
     alignItems: 'center',
-    marginVertical: 10,
+    marginVertical: 15,
   },
   updateButtonText: {
     color: '#fff',
@@ -293,7 +353,8 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },pickerContainer: {
+  },
+  pickerContainer: {
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 8,
@@ -334,5 +395,22 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 4,
   },
-
+  queryBox: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  queryText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  responseText: {
+    fontSize: 13,
+    color: '#555',
+    marginTop: 5,
+  },
 });

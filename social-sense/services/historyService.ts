@@ -3,18 +3,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Interface for history item
 export interface History {
-  id: string;
-  user_id: string;
-  query_set: string[]; // list of query_ids
-  query_number: number;
   history_id: string;
+  user_id: string;
+  query_set: string[];
+  query_number: number;
   assistant_name: string;
 }
 
 // Interface for creating history
 export interface HistoryCreate {
   history_id?: string; // Optional, system will generate if not provided
-  assistant_name: string;
 }
 
 // Interface for updating history
