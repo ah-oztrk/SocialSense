@@ -14,6 +14,8 @@ import {
 import { userService, UserUpdateData } from '@/services/userService';
 import DefaultAvatar from '../../assets/images/PngItem_6490124.png';
 import { Picker } from '@react-native-picker/picker';
+import { router } from 'expo-router';
+import { historyService, History } from '@/services/historyService';
 
 
 const { width } = Dimensions.get('window');
@@ -27,6 +29,8 @@ export default function ProfileScreen() {
   const [updating, setUpdating] = useState(false);
   const [editData, setEditData] = useState<UserUpdateData>({});
 
+  const [histories, setHistories] = useState<History[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -48,8 +52,21 @@ export default function ProfileScreen() {
       }
     };
 
+    const fetchHistories = async () => {
+      try {
+        const data = await historyService.getUserHistories();
+        setHistories(data);
+      } catch (err) {
+        console.error('Error fetching histories:', err);
+      } finally {
+        setHistoryLoading(false);
+      }
+    };
+
     fetchUserData();
+    fetchHistories(); // 💡 Burası eksikti
   }, []);
+
 
   const handleUpdate = async () => {
     setUpdating(true);
@@ -160,8 +177,28 @@ export default function ProfileScreen() {
             <Pressable onPress={() => setEditing(false)}>
               <Text style={styles.cancelText}>Cancel</Text>
             </Pressable>
+
           </View>
+
         )}
+
+      <Text style={styles.sectionTitle}>Your Histories</Text>
+
+      {historyLoading ? (
+        <ActivityIndicator size="small" color="#007AFF" />
+      ) : histories.length === 0 ? (
+        <Text style={styles.noHistoryText}>You have no history yet.</Text>
+      ) : (
+        histories.map((history) => (
+          <View key={history.history_id} style={styles.historyItem}>
+            <Text style={styles.historyTitle}>{history.assistant_name}</Text>
+            <Text style={styles.historyDetail}>
+              Queries: {history.query_number} • History ID: {history.history_id}
+            </Text>
+          </View>
+        ))
+      )}
+
       </ScrollView>
     </>
   );
@@ -267,4 +304,35 @@ const styles = StyleSheet.create({
     height: 50,
     width: '100%',
   },
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    color: '#007AFF',
+  },
+  noHistoryText: {
+    fontSize: 16,
+    color: '#777',
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  historyItem: {
+    backgroundColor: '#eef4ff',
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#007AFF',
+  },
+  historyTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  historyDetail: {
+    fontSize: 13,
+    color: '#666',
+    marginTop: 4,
+  },
+
 });
