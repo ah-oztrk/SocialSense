@@ -21,7 +21,6 @@ class History(BaseModel):
     query_set: List[str] = []  # list of query_ids
     query_number: int = 0
     history_id: str
-    assistant_name: str
 
     class Config:
         json_encoders = {ObjectId: str}

@@ -6,7 +6,7 @@ import secrets
 import string
 from typing import Dict
 
-from app.db.database import user_collection
+from app.db.database import user_collection, history_collection
 from app.models.user import UserCreate, UserInDB, UserResponse, Token, PasswordReset, PasswordChange
 from app.core.auth import (
     verify_password,
@@ -60,8 +60,22 @@ async def register_user(user: UserCreate):
 
     created_user = await user_collection.find_one({"_id": result.inserted_id})
 
+    # Create a default history for the user
+    user_id = str(created_user["_id"])
+    default_history_id = f"hist_{user_id}_default"
+
+    default_history = {
+        "user_id": user_id,
+        "query_set": [],
+        "query_number": 0,
+        "history_id": default_history_id
+    }
+
+    # Insert the default history into the history collection
+    await history_collection.insert_one(default_history)
+
     return {
-        "id": str(created_user["_id"]),
+        "id": user_id,
         "username": created_user["username"],
         "email": created_user["email"],
         "name": created_user["name"],
@@ -177,6 +191,7 @@ async def reset_password(reset_data: PasswordReset):
 async def verify_token(current_user: dict = Depends(get_current_user)):
     """Verify if a token is valid"""
     return {"valid": True}
+
 
 @router.post("/logout")
 async def logout(current_user: dict = Depends(get_current_user)):
