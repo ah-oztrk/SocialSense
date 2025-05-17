@@ -418,7 +418,7 @@ export default function ForumScreen() {
               style={styles.deleteButton}
               onPress={() => setShowDeleteConfirm(question.question_id)}
             >
-              <IconSymbol name="trash" size={16} color="#d32f2f" />
+              <IconSymbol name="trash" size={14} color="#d32f2f" />
               <Text style={styles.deleteText}>Delete</Text>
             </TouchableOpacity>
           )}
@@ -448,7 +448,7 @@ export default function ForumScreen() {
                   return (
                     <View key={answer.answer_id} style={styles.replyItem}>
                       <Text style={styles.replyText}>{answer.answer}</Text>
-                      <View style={styles.replyMeta}>
+                      <View style={styles.replyMetaContainer}>
                         <Text style={styles.authorText}>
                           Reply by {replyUsername}
                         </Text>
@@ -1073,9 +1073,6 @@ const styles = StyleSheet.create({
     padding: 5,
     borderRadius: 8,
   },
-  replyText: {
-    color: '#333',
-  },
   replyItem: {
     padding: 12,
     borderLeftWidth: 2,
@@ -1084,11 +1081,34 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 8,
   },
-  replyMeta: {
+  replyText: {
+    color: '#333',
+    marginBottom: 8,
+  },
+  replyMetaContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 4,
+    alignItems: 'center',
     backgroundColor: '#f0f6ff',
+    marginBottom: 4,
+  },
+  deleteReplyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    marginTop: 4,
+    padding: 4,
+    paddingHorizontal: 6,
+    borderRadius: 4,
+    backgroundColor: '#ffebee',
+    borderWidth: 1,
+    borderColor: '#ffcdd2',
+  },
+  deleteReplyText: {
+    fontSize: 11,
+    color: '#d32f2f',
+    marginLeft: 3,
+    fontWeight: '500',
   },
   replyInputContainer: {
     marginTop: 12,
@@ -1299,28 +1319,8 @@ const styles = StyleSheet.create({
   deleteButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    padding: 5,
-    paddingHorizontal: 8,
-    borderRadius: 5,
-    backgroundColor: '#ffebee',
-    borderWidth: 1,
-    borderColor: '#ffcdd2',
-  },
-  deleteText: {
-    fontSize: 12,
-    color: '#d32f2f',
-    marginLeft: 4,
-    fontWeight: '500',
-  },
-  deleteReplyButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    position: 'absolute',
-    top: 8,
-    right: 8,
+    alignSelf: 'flex-end',
+    marginTop: 8,
     padding: 4,
     paddingHorizontal: 6,
     borderRadius: 4,
@@ -1328,8 +1328,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ffcdd2',
   },
-  deleteReplyText: {
-    fontSize: 10,
+  deleteText: {
+    fontSize: 11,
     color: '#d32f2f',
     marginLeft: 3,
     fontWeight: '500',
