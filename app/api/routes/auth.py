@@ -6,7 +6,7 @@ import secrets
 import string
 from typing import Dict
 
-from app.db.database import user_collection
+from app.db.database import user_collection, history_collection
 from app.models.user import UserCreate, UserInDB, UserResponse, Token, PasswordReset, PasswordChange
 from app.core.auth import (
     verify_password,
@@ -59,6 +59,18 @@ async def register_user(user: UserCreate):
     result = await user_collection.insert_one(new_user)
 
     created_user = await user_collection.find_one({"_id": result.inserted_id})
+
+    # Generate a unique history_id if not provided
+    history_id = f"hist_{str(created_user["_id"])}_{int(datetime.now().timestamp())}"
+
+
+    new_entry = {
+        "user_id": str(created_user["_id"]),
+        "query_set": [],
+        "query_number": 0,
+        "history_id": history_id
+    }
+    res = await history_collection.insert_one(new_entry)
 
     return {
         "id": str(created_user["_id"]),
