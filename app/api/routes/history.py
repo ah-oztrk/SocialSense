@@ -28,6 +28,7 @@ async def create_history(
         "user_id": current_user["id"],
         "query_set": [],
         "query_number": 0,
+        #"assistant_name": entry.assistant_name,
         "history_id": history_id
     }
     res = await history_collection.insert_one(new_entry)
