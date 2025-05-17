@@ -4,7 +4,7 @@ from typing import Optional, List
 class QueryCreate(BaseModel):
     query_id: Optional[str] = None  # Made optional, will be generated if not provided
     query: str
-    history_id: str
+    history_id: Optional[str] = None  # Optional, will use default history if not provided
     model_name: str  # Added model_name to schema for validation
 
 class QueryResponse(BaseModel):

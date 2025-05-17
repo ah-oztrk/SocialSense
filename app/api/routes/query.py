@@ -30,29 +30,64 @@ async def create_query(
     history_id = query_data.history_id
     model_name = query_data.model_name
 
-    # Validate model name
-    valid_models = ["emotiondetection", "textSimplification", "socialNorm"]
-    if model_name not in valid_models:
-        raise HTTPException(status_code=400,
-                            detail="Invalid model name. Choose from: emotiondetection, textSimplification, socialNorm")
+    # If no history_id provided, use the default history for this user
+    if not history_id:
+        logger.info("No history_id provided, looking for default history")
+        default_history = await history_collection.find_one({
+            "user_id": user_id,
+            "history_id": f"hist_{user_id}_default"
+        })
+
+        if not default_history:
+            logger.info("Default history not found, creating one")
+            default_history_id = f"hist_{user_id}_default"
+            default_history = {
+                "user_id": user_id,
+                "query_set": [],
+                "query_number": 0,
+                "history_id": default_history_id
+            }
+            await history_collection.insert_one(default_history)
+            history_id = default_history_id
+        else:
+            logger.info("Using existing default history")
+            history_id = default_history["history_id"]
+
+    logger.info("Using history_id: %s", history_id)
+
+    # Friendly-to-Ollama model mapping
+    model_aliases = {
+        "emotiondetection": "emotion_model",
+        "textSimplification": "simplification_model",
+        "socialNorm": "social_norm_model"
+    }
+
+    # Validate model name and map it
+    if model_name not in model_aliases:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid model name. Choose from: {', '.join(model_aliases.keys())}"
+        )
+
+    actual_model = model_aliases[model_name]
 
     # Generate a unique query_id
     query_id = query_data.query_id or f"qry_{user_id}_{int(datetime.now().timestamp())}"
     logger.info("Generated query_id: %s", query_id)
 
     # Call the selected Ollama model to get the response
-    logger.info("Calling Ollama model: %s", model_name)
+    logger.info("Calling Ollama model: %s", actual_model)
     try:
-        response = ollama.generate(model=model_name, prompt=query)
+        response = ollama.generate(model=actual_model, prompt=query)
         logger.info("Full Ollama response: %s", response)
         response_text = response.get('response', '').strip()
         if not response_text:
-            logger.warning("Ollama returned an empty response for model: %s", model_name)
-            raise HTTPException(status_code=500, detail=f"Model {model_name} returned an empty response")
+            logger.warning("Ollama returned an empty response for model: %s", actual_model)
+            raise HTTPException(status_code=500, detail=f"Model {actual_model} returned an empty response")
         logger.info("Ollama response text: %s", response_text)
     except Exception as e:
         logger.error("Ollama error: %s", str(e))
-        raise HTTPException(status_code=500, detail=f"Error processing query with model {model_name}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing query with model {actual_model}: {str(e)}")
 
     # Prepare the query entry
     creation_date = datetime.now().isoformat()
@@ -96,6 +131,7 @@ async def create_query(
 
     logger.info("Query creation successful")
     return created
+
 
 
 @router.get("/{query_id}", response_model=QueryResponse)

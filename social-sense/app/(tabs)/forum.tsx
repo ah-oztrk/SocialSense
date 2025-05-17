@@ -1,6 +1,7 @@
 import { StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, View, Dimensions, RefreshControl, TouchableOpacity, Text, Modal } from 'react-native';
 import React, { useState, useEffect, useCallback } from 'react';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { Collapsible } from '@/components/Collapsible';
 import { IconSymbol } from '@/components/ui/IconSymbol';
@@ -58,6 +59,11 @@ export default function ForumScreen() {
   const [sortBy, setSortBy] = useState<string>('default');
   const [showSortModal, setShowSortModal] = useState(false);
   const [currentUserID, setCurrentUserID] = useState<string | null>(null);
+  const [currentUsername, setCurrentUsername] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState<{ [key: string]: boolean }>({});
+  const [deleteAnswerLoading, setDeleteAnswerLoading] = useState<{ [key: string]: boolean }>({});
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [showDeleteAnswerConfirm, setShowDeleteAnswerConfirm] = useState<string | null>(null);
 
   const checkAuth = async () => {
     try {
@@ -87,17 +93,46 @@ export default function ForumScreen() {
       
       try {
         if (showMyQuestions) {
+          console.log("Loading user's questions");
           fetchedQuestions = await forumService.getUserQuestions();
         } else {
+          console.log("Loading all questions");
           fetchedQuestions = await forumService.getQuestions();
         }
-        
-        // Sort questions based on selected sort option
-        sortQuestionsByPreference(fetchedQuestions);
         
         // Successfully fetched questions (even if empty array)
         setQuestions(fetchedQuestions);
         setError(null);
+        
+        // Only try to fetch answers if we have questions
+        if (fetchedQuestions.length > 0) {
+          console.log(`Loading answers for ${fetchedQuestions.length} questions`);
+          
+          // Create an array of promises for fetching answers
+          const answerPromises = fetchedQuestions.map(async (question) => {
+            try {
+              const questionAnswers = await forumService.getQuestionAnswers(question.question_id);
+              return { questionId: question.question_id, answers: questionAnswers };
+            } catch (err) {
+              console.error(`Error loading answers for question ${question.question_id}:`, err);
+              return { questionId: question.question_id, answers: [] };
+            }
+          });
+          
+          // Wait for all answer requests to complete
+          const answersResults = await Promise.all(answerPromises);
+          
+          // Build the answers map
+          const answersMap: { [key: string]: Answer[] } = {};
+          answersResults.forEach(result => {
+            answersMap[result.questionId] = sortAnswersByPreference(result.answers);
+          });
+          
+          setAnswers(answersMap);
+        }
+        
+        // Sort questions after answers are loaded (for proper sorting by reply count)
+        setQuestions(sortQuestionsByPreference([...fetchedQuestions]));
       } catch (err) {
         // If error message indicates authentication issue, redirect to login
         if (err instanceof Error) {
@@ -114,23 +149,6 @@ export default function ForumScreen() {
           }
         }
         throw err; // Re-throw the error to be caught by the outer catch block
-      }
-
-      // Only try to fetch answers if we have questions
-      if (fetchedQuestions.length > 0) {
-        const answersMap: { [key: string]: Answer[] } = {};
-        for (const question of fetchedQuestions) {
-          try {
-            const questionAnswers = await forumService.getQuestionAnswers(question.question_id);
-            // Sort answers based on selected sort option
-            sortAnswersByPreference(questionAnswers);
-            answersMap[question.question_id] = questionAnswers;
-          } catch (err) {
-            console.error(`Error loading answers for question ${question.question_id}:`, err);
-            answersMap[question.question_id] = [];
-          }
-        }
-        setAnswers(answersMap);
       }
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : 'Failed to load questions. Please try again later.';
@@ -213,20 +231,40 @@ export default function ForumScreen() {
     return answersArray;
   };
 
-  // Get current user ID on load
+  // Get current user ID and username on load
   useEffect(() => {
     const getUserInfo = async () => {
       try {
         const userData = await authService.getUser();
         if (userData) {
           setCurrentUserID(userData.id);
+          setCurrentUsername(userData.username);
         }
       } catch (err) {
         console.error('Error getting user info:', err);
       }
     };
     
-    getUserInfo();
+    const loadPersistedState = async () => {
+      try {
+        const persistedShowMyQuestions = await AsyncStorage.getItem('showMyQuestions');
+        if (persistedShowMyQuestions !== null) {
+          setShowMyQuestions(JSON.parse(persistedShowMyQuestions));
+        }
+      } catch (err) {
+        console.error('Error loading persisted state:', err);
+      }
+    };
+    
+    // Load user info and persisted state first, then load questions
+    const initializeData = async () => {
+      await getUserInfo();
+      await loadPersistedState();
+      // Initial load of questions and answers
+      loadQuestions();
+    };
+    
+    initializeData();
   }, []);
 
   // Apply sorting when sort preference changes
@@ -241,6 +279,9 @@ export default function ForumScreen() {
         newAnswersMap[questionId] = sortAnswersByPreference([...newAnswersMap[questionId]]);
       });
       setAnswers(newAnswersMap);
+      
+      // Reset expanded replies state when sort option changes
+      setExpandedReplies({});
     }
   }, [sortBy]);
 
@@ -262,8 +303,14 @@ export default function ForumScreen() {
     }
   };
 
+  // Update this useEffect to load questions when showMyQuestions changes
   useEffect(() => {
-    loadQuestions();
+    // Skip the initial render
+    if (questions.length > 0) {
+      // Reset expanded replies state when toggling between all/my questions
+      setExpandedReplies({});
+      loadQuestions();
+    }
   }, [showMyQuestions]);
 
   const onRefresh = useCallback(() => {
@@ -330,11 +377,20 @@ export default function ForumScreen() {
   };
 
   const renderQuestion = (question: Question) => {
-    // Get a clean username for display - either use the actual username or make a clean user ID
-    const displayUsername = question.username || 
-      (question.user_id ? `User ${question.user_id.substring(0, 6)}...` : 'Unknown');
+    // Get a clean username for display
+    let displayUsername = question.username;
+    
+    // If no username in the question data but it's the current user's question, use current username
+    if (!displayUsername && question.user_id === currentUserID && currentUsername) {
+      displayUsername = currentUsername;
+    } 
+    // Fallback to a clean user ID if no username is available
+    else if (!displayUsername) {
+      displayUsername = question.user_id ? `User ${question.user_id.substring(0, 6)}...` : 'Unknown';
+    }
     
     const isExpanded = expandedReplies[question.question_id] || false;
+    const isOwnQuestion = question.user_id === currentUserID;
     
     return (
       <Pressable
@@ -356,9 +412,19 @@ export default function ForumScreen() {
               {formatDate(question.creation_date)}
             </Text>
           </View>
+          
+          {isOwnQuestion && (
+            <TouchableOpacity 
+              style={styles.deleteButton}
+              onPress={() => setShowDeleteConfirm(question.question_id)}
+            >
+              <IconSymbol name="trash" size={16} color="#d32f2f" />
+              <Text style={styles.deleteText}>Delete</Text>
+            </TouchableOpacity>
+          )}
 
           <Collapsible
-            title={isExpanded ? 'Hide replies...' : 'See replies...'}
+            title={isExpanded ? 'Hide replies...' : `See replies...(${answers[question.question_id]?.length || 0})`}
             onToggle={() => toggleReplies(question.question_id)}
             isOpen={isExpanded}
           >
@@ -366,8 +432,18 @@ export default function ForumScreen() {
               {answers[question.question_id]?.length > 0 ? (
                 answers[question.question_id].map((answer) => {
                   // Get a clean username for the reply
-                  const replyUsername = answer.username || 
-                    (answer.user_id ? `User ${answer.user_id.substring(0, 6)}...` : 'Unknown');
+                  let replyUsername = answer.username;
+                  
+                  // If no username in the reply data but it's the current user's reply, use current username
+                  if (!replyUsername && answer.user_id === currentUserID && currentUsername) {
+                    replyUsername = currentUsername;
+                  }
+                  // Fallback to a clean user ID if no username is available
+                  else if (!replyUsername) {
+                    replyUsername = answer.user_id ? `User ${answer.user_id.substring(0, 6)}...` : 'Unknown';
+                  }
+                  
+                  const isOwnReply = answer.user_id === currentUserID;
                     
                   return (
                     <View key={answer.answer_id} style={styles.replyItem}>
@@ -380,6 +456,16 @@ export default function ForumScreen() {
                           {formatDate(answer.creation_date)}
                         </Text>
                       </View>
+                      
+                      {isOwnReply && (
+                        <TouchableOpacity 
+                          style={styles.deleteReplyButton}
+                          onPress={() => setShowDeleteAnswerConfirm(answer.answer_id)}
+                        >
+                          <IconSymbol name="trash" size={14} color="#d32f2f" />
+                          <Text style={styles.deleteReplyText}>Delete</Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   );
                 })
@@ -436,6 +522,74 @@ export default function ForumScreen() {
       setDebugInfo(data);
     } catch (err) {
       setDebugInfo({ error: err instanceof Error ? err.message : String(err) });
+    }
+  };
+
+  useEffect(() => {
+    const persistShowMyQuestions = async () => {
+      try {
+        await AsyncStorage.setItem('showMyQuestions', JSON.stringify(showMyQuestions));
+      } catch (err) {
+        console.error('Error persisting showMyQuestions:', err);
+      }
+    };
+
+    persistShowMyQuestions();
+  }, [showMyQuestions]);
+
+  const handleDeleteQuestion = async (questionId: string) => {
+    const isAuthenticated = await checkAuth();
+    if (!isAuthenticated) return;
+
+    try {
+      setDeleteLoading(prev => ({ ...prev, [questionId]: true }));
+      setError(null);
+      await forumService.deleteQuestion(questionId);
+      
+      // Remove the question from the state
+      setQuestions(prev => prev.filter(q => q.question_id !== questionId));
+      
+      // Remove any answers associated with this question
+      setAnswers(prev => {
+        const newAnswers = { ...prev };
+        delete newAnswers[questionId];
+        return newAnswers;
+      });
+      
+      // Hide the confirmation modal
+      setShowDeleteConfirm(null);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Failed to delete question. Please try again.';
+      setError(errMsg);
+      console.error('Error deleting question:', err);
+    } finally {
+      setDeleteLoading(prev => ({ ...prev, [questionId]: false }));
+    }
+  };
+
+  const handleDeleteAnswer = async (questionId: string, answerId: string) => {
+    const isAuthenticated = await checkAuth();
+    if (!isAuthenticated) return;
+
+    try {
+      setDeleteAnswerLoading(prev => ({ ...prev, [answerId]: true }));
+      setError(null);
+      await forumService.deleteAnswer(answerId);
+      
+      // Remove the answer from the state
+      setAnswers(prev => ({
+        ...prev,
+        [questionId]: prev[questionId].filter(a => a.answer_id !== answerId)
+      }));
+      
+      // Hide the confirmation modal
+      setShowDeleteAnswerConfirm(null);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Failed to delete reply. Please try again.';
+      setError(errMsg);
+      console.error('Error deleting reply:', err);
+    } finally {
+      setDeleteAnswerLoading(prev => ({ ...prev, [answerId]: false }));
     }
   };
 
@@ -501,11 +655,20 @@ export default function ForumScreen() {
 
         <Pressable 
           style={styles.historyButton}
-          onPress={() => setShowMyQuestions(!showMyQuestions)}
+          onPress={() => {
+            const newValue = !showMyQuestions;
+            setShowMyQuestions(newValue);
+            // Reset expanded replies state when toggling between all/my questions
+            setExpandedReplies({});
+            // Reset sort option to default when toggling between all/my questions
+            if (sortBy === 'your_questions' && !newValue) {
+              setSortBy('default');
+            }
+          }}
         >
           <IconSymbol size={20} name="clock.circle" color="#FFFFFF" />
           <Text style={styles.historyText}>
-            {showMyQuestions ? 'All Questions' : 'Your Interaction History'}
+            {showMyQuestions ? 'All Questions' : 'Your Questions'}
           </Text>
         </Pressable>
       </View>
@@ -611,6 +774,8 @@ export default function ForumScreen() {
                   if (option.id === 'your_questions') {
                     setShowMyQuestions(false);
                   }
+                  // Reset expanded replies when changing sort
+                  setExpandedReplies({});
                   setShowSortModal(false);
                 }}
               >
@@ -632,6 +797,97 @@ export default function ForumScreen() {
                 </View>
               </TouchableOpacity>
             ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Delete Question Confirmation Modal */}
+      <Modal
+        visible={showDeleteConfirm !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowDeleteConfirm(null)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowDeleteConfirm(null)}
+        >
+          <View style={styles.confirmModal}>
+            <Text style={styles.confirmModalTitle}>Delete Question</Text>
+            <Text style={styles.confirmModalText}>
+              Are you sure you want to delete this question? This action cannot be undone.
+            </Text>
+            <View style={styles.confirmButtonRow}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setShowDeleteConfirm(null)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.confirmButton}
+                onPress={() => showDeleteConfirm && handleDeleteQuestion(showDeleteConfirm)}
+                disabled={showDeleteConfirm ? deleteLoading[showDeleteConfirm] : false}
+              >
+                {showDeleteConfirm && deleteLoading[showDeleteConfirm] ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.confirmButtonText}>Delete</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Delete Answer Confirmation Modal */}
+      <Modal
+        visible={showDeleteAnswerConfirm !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowDeleteAnswerConfirm(null)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowDeleteAnswerConfirm(null)}
+        >
+          <View style={styles.confirmModal}>
+            <Text style={styles.confirmModalTitle}>Delete Reply</Text>
+            <Text style={styles.confirmModalText}>
+              Are you sure you want to delete this reply? This action cannot be undone.
+            </Text>
+            <View style={styles.confirmButtonRow}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setShowDeleteAnswerConfirm(null)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.confirmButton}
+                onPress={() => {
+                  if (showDeleteAnswerConfirm) {
+                    // Find the question ID for this answer
+                    const questionId = Object.keys(answers).find(qId => 
+                      answers[qId].some(a => a.answer_id === showDeleteAnswerConfirm)
+                    );
+                    
+                    if (questionId) {
+                      handleDeleteAnswer(questionId, showDeleteAnswerConfirm);
+                    }
+                  }
+                }}
+                disabled={showDeleteAnswerConfirm ? deleteAnswerLoading[showDeleteAnswerConfirm] : false}
+              >
+                {showDeleteAnswerConfirm && deleteAnswerLoading[showDeleteAnswerConfirm] ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.confirmButtonText}>Delete</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -1039,5 +1295,87 @@ const styles = StyleSheet.create({
   },
   sortOptionDescriptionSelected: {
     color: 'rgba(255, 255, 255, 0.8)',
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    padding: 5,
+    paddingHorizontal: 8,
+    borderRadius: 5,
+    backgroundColor: '#ffebee',
+    borderWidth: 1,
+    borderColor: '#ffcdd2',
+  },
+  deleteText: {
+    fontSize: 12,
+    color: '#d32f2f',
+    marginLeft: 4,
+    fontWeight: '500',
+  },
+  deleteReplyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    padding: 4,
+    paddingHorizontal: 6,
+    borderRadius: 4,
+    backgroundColor: '#ffebee',
+    borderWidth: 1,
+    borderColor: '#ffcdd2',
+  },
+  deleteReplyText: {
+    fontSize: 10,
+    color: '#d32f2f',
+    marginLeft: 3,
+    fontWeight: '500',
+  },
+  confirmModal: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 12,
+    width: width * 0.8,
+    alignItems: 'center',
+  },
+  confirmModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 10,
+  },
+  confirmModalText: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 20,
+  },
+  confirmButtonRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  cancelButton: {
+    backgroundColor: '#CCCCCC',
+    padding: 10,
+    borderRadius: 5,
+    marginLeft: 10,
+  },
+  cancelButtonText: {
+    color: '#333',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  confirmButton: {
+    backgroundColor: '#007AFF',
+    padding: 10,
+    borderRadius: 5,
+    marginLeft: 10,
+  },
+  confirmButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

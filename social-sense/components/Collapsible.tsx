@@ -35,7 +35,7 @@ export function Collapsible({ children, title, onToggle, isOpen = false }: Colla
           color="#007AFF"
           style={{ transform: [{ rotate: isOpen ? '90deg' : '0deg' }] }}
         />
-        <Text style={styles.headingText}>{isOpen ? 'Hide replies...' : 'See replies...'}</Text>
+        <Text style={styles.headingText}>{title}</Text>
       </TouchableOpacity>
       {isOpen && <View style={styles.content}>{children}</View>}
     </View>

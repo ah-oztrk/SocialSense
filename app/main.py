@@ -27,7 +27,7 @@ app.include_router(history_router)
 app.include_router(forum_router)
 app.include_router(user_router, prefix="/user")
 app.include_router(auth_router, prefix="/auth")
-app.include_router(query_router)
+app.include_router(query_router, prefix="/query")
 
 print("🚀 Main.py yüklendi")
 @app.get("/")
