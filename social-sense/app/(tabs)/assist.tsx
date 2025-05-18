@@ -15,6 +15,7 @@ import {
 import { Picker } from '@react-native-picker/picker';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Get screen dimensions for responsive tweaks
 const { width: screenWidth } = Dimensions.get('window');
@@ -54,13 +55,13 @@ export default function AssistScreen() {
     setResponse('Loading...');
 
     
-    const user_id = 'user456';     // <-- Replace with dynamic user ID
-    const history_id = "hist002";  // <-- Replace with dynamic history ID
+    const token = await AsyncStorage.getItem('token');
 
     const res = await fetch('https://2dba-159-20-69-20.ngrok-free.app/query/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify({
         query,
