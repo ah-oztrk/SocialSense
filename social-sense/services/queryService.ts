@@ -46,5 +46,39 @@ export const queryService = {
       console.error('Error fetching query by ID:', error);
       throw error;
     }
+  },
+
+  // Delete a query
+  async deleteQuery(queryId: string): Promise<void> {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const url = `${API_BASE_URL}/query/${queryId}`;
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+      };
+
+      logApiRequest(url, 'DELETE', headers, null);
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers,
+      });
+
+      const responseData = await logApiResponse(response);
+      if (!response.ok) {
+        throw new Error(
+          `Failed to delete query: ${response.status} ${
+            typeof responseData === 'string' ? responseData : JSON.stringify(responseData)
+          }`
+        );
+      }
+    } catch (error) {
+      console.error('Error deleting query:', error);
+      throw error;
+    }
   }
 };

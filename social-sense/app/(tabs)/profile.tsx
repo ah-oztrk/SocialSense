@@ -33,6 +33,7 @@ export default function ProfileScreen() {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [queriesByHistory, setQueriesByHistory] = useState<{ [key: string]: any[] }>({});
   const [refreshing, setRefreshing] = useState(false);
+  const [queryError, setQueryError] = useState<string | null>(null);
 
   const fetchUserData = async () => {
     try {
@@ -55,21 +56,36 @@ export default function ProfileScreen() {
 
   const fetchHistories = async () => {
     try {
+      setQueryError(null);
       const data = await historyService.getUserHistories();
       setHistories(data);
 
       const queriesMap: { [key: string]: any[] } = {};
       for (const history of data) {
-        const queryPromises = history.query_set.map((qid) =>
-          queryService.getQueryById(qid).catch(() => null)
-        );
+        if (history.query_set.length === 0) continue;
+        
+        const queryPromises = history.query_set.map(async (qid) => {
+          try {
+            return await queryService.getQueryById(qid);
+          } catch (err) {
+            console.error('Error fetching query:', qid, err);
+            return null;
+          }
+        });
+        
         const queries = (await Promise.all(queryPromises)).filter(Boolean);
+        if (queries.length === 0 && history.query_set.length > 0) {
+          setQueryError('Some queries could not be loaded. Please try refreshing.');
+        }
         queriesMap[history.history_id] = queries;
       }
 
       setQueriesByHistory(queriesMap);
     } catch (err) {
       console.error('Error fetching histories:', err);
+      if (histories && histories.some(h => h.query_set.length > 0)) {
+        setQueryError('Failed to load queries. Please try again later.');
+      }
     } finally {
       setHistoryLoading(false);
     }
@@ -202,9 +218,21 @@ export default function ProfileScreen() {
         <Text style={styles.sectionTitle}>Your Past Queries</Text>
 
         {historyLoading ? (
-          <ActivityIndicator size="small" color="#007AFF" />
-        ) : histories.length === 0 ? (
-          <Text style={styles.noHistoryText}>You have no history yet.</Text>
+          <View style={styles.emptyStateContainer}>
+            <ActivityIndicator size="small" color="#007AFF" />
+          </View>
+        ) : !histories || histories.length === 0 || histories.every(h => h.query_set.length === 0) ? (
+          <View style={styles.emptyStateContainer}>
+            <Text style={styles.noHistoryText}>You have no queries yet.</Text>
+            <Text style={styles.noHistorySubText}>Your queries will appear here once you start asking questions.</Text>
+          </View>
+        ) : queryError ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{queryError}</Text>
+            <Pressable style={styles.retryButton} onPress={fetchHistories}>
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </Pressable>
+          </View>
         ) : (
           histories.map((history) => (
             <View key={history.history_id} style={styles.historyItem}>
@@ -237,6 +265,9 @@ export default function ProfileScreen() {
 
                           console.log('[DEBUG] Found query to remove:', queryToRemove);
                           await historyService.removeQueryFromHistory(history.history_id, queryToRemove);
+                          
+                          // Also delete the query from the database
+                          await queryService.deleteQuery(query.id);
                           
                           const updatedHistories = await historyService.getUserHistories();
                           setHistories(updatedHistories);
@@ -414,10 +445,16 @@ const styles = StyleSheet.create({
     color: '#007AFF',
   },
   noHistoryText: {
-    fontSize: 16,
-    color: '#777',
-    fontStyle: 'italic',
+    fontSize: 18,
+    color: '#666',
+    fontWeight: '600',
     textAlign: 'center',
+  },
+  noHistorySubText: {
+    fontSize: 14,
+    color: '#888',
+    textAlign: 'center',
+    marginTop: 8,
   },
   historyItem: {
     backgroundColor: '#eef4ff',
@@ -454,5 +491,39 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#555',
     marginTop: 5,
+  },
+  emptyStateContainer: {
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 10,
+    marginVertical: 10,
+  },
+  errorContainer: {
+    backgroundColor: '#fff3f3',
+    padding: 15,
+    borderRadius: 10,
+    marginVertical: 10,
+    borderWidth: 1,
+    borderColor: '#ffcdd2',
+  },
+  errorText: {
+    color: '#d32f2f',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 10,
+    backgroundColor: '#007AFF',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 5,
+    alignSelf: 'center',
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
