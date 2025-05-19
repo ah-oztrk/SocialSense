@@ -64,7 +64,7 @@ export default function AssistScreen() {
         return;
       }
 
-      const res = await fetch("https://2861-159-20-69-20.ngrok-free.app", {
+      const res = await fetch('https://81fc-159-20-69-4.ngrok-free.app/query/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
