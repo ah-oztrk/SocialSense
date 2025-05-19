@@ -5,7 +5,7 @@ import { Platform } from 'react-native';
 export const DEBUG_MODE = true;
 
 // Determine the appropriate API URL based on the platform and environment
-let baseUrl = 'http://127.0.0.1:8000';
+let baseUrl = 'http://10.0.2.2:8000';
 
 // For Android emulator, use 10.0.2.2 instead of localhost
 
@@ -13,7 +13,7 @@ let baseUrl = 'http://127.0.0.1:8000';
 // baseUrl = 'http://192.168.1.X:8000'; // Replace X with your actual IP address
 
 // Uncomment to use ngrok for external testing
-baseUrl = 'https://81fc-159-20-69-4.ngrok-free.app';
+//baseUrl = 'https://81fc-159-20-69-4.ngrok-free.app';
 
 console.log(`API_BASE_URL configured as: ${baseUrl}`);
 

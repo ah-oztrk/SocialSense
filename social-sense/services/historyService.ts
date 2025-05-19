@@ -217,25 +217,28 @@ export const historyService = {
         throw new Error('No authentication token found');
       }
 
-      const url = `${API_BASE_URL}/history/${historyId}/remove-query`;
+      console.log('[DEBUG] Attempting to remove query', queryId, 'from history', historyId);
+
+      // Use query parameter format that works with the backend
+      const url = `${API_BASE_URL}/history/${historyId}/remove-query?query_id=${encodeURIComponent(queryId)}`;
 
       const headers = {
-        'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
         'Accept': 'application/json',
       };
 
-      logApiRequest(url, 'DELETE', headers, { query_id: queryId });
+      logApiRequest(url, 'DELETE', headers, null);
 
       const response = await fetch(url, {
         method: 'DELETE',
         headers,
-        body: JSON.stringify({ query_id: queryId }),
       });
 
+      const responseData = await logApiResponse(response);
+
       if (!response.ok) {
-        const responseData = await logApiResponse(response);
-        throw new Error(`Failed to remove query from history: ${response.status} ${typeof responseData === 'string' ? responseData : JSON.stringify(responseData)}`);
+        console.error('[DEBUG] Failed response:', responseData);
+        throw new Error(`Failed to remove query from history: ${response.status} ${responseData}`);
       }
 
       // Update cached histories after successful removal
