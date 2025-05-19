@@ -19,11 +19,11 @@ export default function LoginScreen() {
     setError(null);
     try {
       setIsSubmitting(true);
-      const data= await authService.login({
+      await authService.login({
         username,
         password
       });
-      await AsyncStorage.setItem('token', data.token);
+      
       // Redirect to home after successful login
       router.replace('/(tabs)');
     } catch (error) {
