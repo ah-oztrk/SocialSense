@@ -35,6 +35,7 @@ export default function ProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchUserData = async () => {
+    setLoading(true);
     try {
       const profileData = await userService.getUserProfile();
       setUser(profileData);
@@ -54,10 +55,10 @@ export default function ProfileScreen() {
   };
 
   const fetchHistories = async () => {
+    setHistoryLoading(true);
     try {
       const data = await historyService.getUserHistories();
-      setHistories(data);
-
+      setHistories(data || []);
       const queriesMap: { [key: string]: any[] } = {};
       for (const history of data) {
         const queryPromises = history.query_set.map((qid) =>
@@ -70,6 +71,7 @@ export default function ProfileScreen() {
       setQueriesByHistory(queriesMap);
     } catch (err) {
       console.error('Error fetching histories:', err);
+      setHistories([]);
     } finally {
       setHistoryLoading(false);
     }
@@ -201,11 +203,15 @@ export default function ProfileScreen() {
 
         <Text style={styles.sectionTitle}>Your Past Queries</Text>
 
-        {historyLoading ? (
+        {historyLoading && (
           <ActivityIndicator size="small" color="#007AFF" />
-        ) : histories.length === 0 ? (
-          <Text style={styles.noHistoryText}>You have no history yet.</Text>
-        ) : (
+        )}
+
+        {!historyLoading && histories.length === 1 && (
+          <View style={{ paddingVertical: 30, alignItems: 'center' }}>
+            <Text style={styles.noHistoryText}>You have no history yet.</Text>
+          </View>)}
+        {!historyLoading && histories.length > 1 && (
           histories.map((history) => (
             <View key={history.history_id} style={styles.historyItem}>
               {queriesByHistory[history.history_id]?.map((query) => (
@@ -286,6 +292,7 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   container: {
+    flexGrow: 1,
     paddingVertical: 30,
     paddingHorizontal: 20,
     backgroundColor: '#fff',
@@ -397,6 +404,8 @@ const styles = StyleSheet.create({
     color: '#777',
     fontStyle: 'italic',
     textAlign: 'center',
+    paddingHorizontal: 10,
+    lineHeight: 22,
   },
   historyItem: {
     backgroundColor: '#eef4ff',
