@@ -216,7 +216,28 @@ export default function ProfileScreen() {
                     <Pressable
                       onPress={async () => {
                         try {
-                          await historyService.removeQueryFromHistory(history.history_id, query.id);
+                          console.log('[DEBUG] Trying to remove query with ID:', query.id);
+                          console.log('[DEBUG] User ID:', history.user_id);
+                          
+                          // Format the query ID to match the pattern in query_set
+                          const expectedQueryId = `qry_${history.user_id}_${query.id}`;
+                          console.log('[DEBUG] Looking for query ID pattern:', expectedQueryId);
+                          
+                          // Find the query in the history's query_set
+                          const queryToRemove = history.query_set.find(qid => 
+                            qid.startsWith(`qry_${history.user_id}`)
+                          );
+                          
+                          if (!queryToRemove) {
+                            console.error('[DEBUG] Query not found in history. Query ID:', query.id);
+                            console.error('[DEBUG] Available queries:', history.query_set);
+                            Alert.alert('Error', 'Could not find query in history.');
+                            return;
+                          }
+
+                          console.log('[DEBUG] Found query to remove:', queryToRemove);
+                          await historyService.removeQueryFromHistory(history.history_id, queryToRemove);
+                          
                           const updatedHistories = await historyService.getUserHistories();
                           setHistories(updatedHistories);
 
