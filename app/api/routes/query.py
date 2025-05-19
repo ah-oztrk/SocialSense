@@ -57,9 +57,9 @@ async def create_query(
 
     # Friendly-to-Ollama model mapping
     model_aliases = {
-        "emotiondetection": "emotion_model",
-        "textSimplification": "simplification_model",
-        "socialNorm": "social_norm_model"
+        "emotiondetection": "emotiondetection",
+        "textSimplification": "textSimplification",
+        "socialNorm": "socialNorm"
     }
 
     # Validate model name and map it

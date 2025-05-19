@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, SafeAreaView, KeyboardAvoidingView, Platform } from 'react-native';
 import { authService } from '../../services/authService';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function LoginScreen() {
   const [username, setUsername] = useState('');
@@ -22,6 +23,7 @@ export default function LoginScreen() {
         username,
         password
       });
+      
       // Redirect to home after successful login
       router.replace('/(tabs)');
     } catch (error) {
