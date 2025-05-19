@@ -16,6 +16,7 @@ import { Picker } from '@react-native-picker/picker';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authService } from '@/services/authService';
 
 // Get screen dimensions for responsive tweaks
 const { width: screenWidth } = Dimensions.get('window');
