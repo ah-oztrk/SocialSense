@@ -8,10 +8,10 @@ from fastapi import Body
 from app.core.auth import get_current_user
 from datetime import datetime
 import logging
+from fastapi import Query
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -93,7 +93,7 @@ async def add_query_to_history(
 @router.delete("/history/{history_id}/remove-query")
 async def remove_query_from_history(
         history_id: str,
-        query_id: str = Body(..., embed=True),
+        query_id: str= Query(...),
         current_user: dict = Depends(get_current_user)
 ):
     # First check if the history belongs to the current user
