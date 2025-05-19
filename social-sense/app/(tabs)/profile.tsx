@@ -1,5 +1,5 @@
 // ... importlar (aynı kalıyor)
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Alert,
   Dimensions,
   Image,
+  RefreshControl
 } from 'react-native';
 import { userService, UserUpdateData } from '@/services/userService';
 import DefaultAvatar from '../../assets/images/PngItem_6490124.png';
@@ -31,53 +32,65 @@ export default function ProfileScreen() {
   const [histories, setHistories] = useState<History[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [queriesByHistory, setQueriesByHistory] = useState<{ [key: string]: any[] }>({});
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchUserData = async () => {
+    try {
+      const profileData = await userService.getUserProfile();
+      setUser(profileData);
+      setEditData({
+        username: profileData.username,
+        email: profileData.email,
+        name: profileData.name,
+        age: profileData.age,
+        gender: profileData.gender,
+      });
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Error', 'Failed to load user data.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchHistories = async () => {
+    try {
+      const data = await historyService.getUserHistories();
+      setHistories(data);
+
+      const queriesMap: { [key: string]: any[] } = {};
+      for (const history of data) {
+        const queryPromises = history.query_set.map((qid) =>
+          queryService.getQueryById(qid).catch(() => null)
+        );
+        const queries = (await Promise.all(queryPromises)).filter(Boolean);
+        queriesMap[history.history_id] = queries;
+      }
+
+      setQueriesByHistory(queriesMap);
+    } catch (err) {
+      console.error('Error fetching histories:', err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const profileData = await userService.getUserProfile();
-        setUser(profileData);
-        setEditData({
-          username: profileData.username,
-          email: profileData.email,
-          name: profileData.name,
-          age: profileData.age,
-          gender: profileData.gender,
-        });
-      } catch (err) {
-        console.error(err);
-        Alert.alert('Error', 'Failed to load user data.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    const fetchHistories = async () => {
-      try {
-        const data = await historyService.getUserHistories();
-        setHistories(data);
-
-        const queriesMap: { [key: string]: any[] } = {};
-        for (const history of data) {
-          const queryPromises = history.query_set.map((qid) =>
-            queryService.getQueryById(qid).catch(() => null)
-          );
-          const queries = (await Promise.all(queryPromises)).filter(Boolean);
-          queriesMap[history.history_id] = queries;
-        }
-
-        setQueriesByHistory(queriesMap);
-      } catch (err) {
-        console.error('Error fetching histories:', err);
-      } finally {
-        setHistoryLoading(false);
-      }
-    };
-
     fetchUserData();
     fetchHistories();
   }, []);
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([fetchUserData(), fetchHistories()]);
+    } catch (err) {
+      console.error('Refresh error:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
   const handleUpdate = async () => {
     setUpdating(true);
     try {
@@ -106,7 +119,15 @@ export default function ProfileScreen() {
       <View style={styles.header}>
         <Text style={styles.headerText}>Your Profile</Text>
       </View>
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={styles.container}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#007AFF']}
+          />
+        }
+      >
 
         <View style={styles.avatarContainer}>
           <Image
