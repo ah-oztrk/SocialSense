@@ -27,7 +27,7 @@ async def create_query(
 
     # Extract fields from the request body
     query = query_data.query
-    history_id = query_data.history_id
+    history_id = f"hist_{user_id}_default"
     model_name = query_data.model_name
 
     # If no history_id provided, use the default history for this user

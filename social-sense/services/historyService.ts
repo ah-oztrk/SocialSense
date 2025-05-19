@@ -225,10 +225,10 @@ export const historyService = {
         'Accept': 'application/json',
       };
 
-      logApiRequest(url, 'PUT', headers, { query_id: queryId });
+      logApiRequest(url, 'DELETE', headers, { query_id: queryId });
 
       const response = await fetch(url, {
-        method: 'PUT',
+        method: 'DELETE',
         headers,
         body: JSON.stringify({ query_id: queryId }),
       });

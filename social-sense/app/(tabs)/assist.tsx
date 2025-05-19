@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+
 import {
   View,
   Text,
@@ -39,54 +40,54 @@ export default function AssistScreen() {
   const [assistant, setAssistant] = useState<AssistantType | ''>('');
 
   const handleSubmit = async () => {
-  if (!assistant || !query.trim()) {
-    setResponse('Please select an assistant and enter a prompt.');
-    return;
-  }
-
-
-  const modelMap: Record<AssistantType, string> = {
-  textSimplification: 'textSimplification',
-  emotiondetection: 'emotiondetection',
-  socialNorm: 'socialNorm',
-};
-
-
-  try {
-    setResponse('Loading...');
-
-    
-    const token = await authService.getToken(); //Get token from storage
-    
-    if (!token) {
-      setResponse('Not authenticated. Please login again.');
+    if (!assistant || !query.trim()) {
+      setResponse('Please select an assistant and enter a prompt.');
       return;
     }
 
-    const res = await fetch('https://2dba-159-20-69-20.ngrok-free.app/query/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        query,
-        model_name: modelMap[assistant as AssistantType],
-      }),
-    });
 
-    if (!res.ok) {
-      const error = await res.json();
-      throw new Error(error.detail || 'Unknown error occurred');
+    const modelMap: Record<AssistantType, string> = {
+      textSimplification: 'textSimplification',
+      emotiondetection: 'emotiondetection',
+      socialNorm: 'socialNorm',
+    };
+
+
+    try {
+      setResponse('Loading...');
+
+
+      const token = await authService.getToken(); //Get token from storage
+
+      if (!token) {
+        setResponse('Not authenticated. Please login again.');
+        return;
+      }
+
+      const res = await fetch("https://2861-159-20-69-20.ngrok-free.app", {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          query,
+          model_name: modelMap[assistant as AssistantType],
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.detail || 'Unknown error occurred');
+      }
+
+      const data = await res.json();
+      setResponse(data.response);
+    } catch (error: any) {
+      console.error('API error:', error);
+      setResponse(`Error: ${error.message}`);
     }
-
-    const data = await res.json();
-    setResponse(data.response);
-  } catch (error: any) {
-    console.error('API error:', error);
-    setResponse(`Error: ${error.message}`);
-  }
-};
+  };
 
 
   const styles = StyleSheet.create({

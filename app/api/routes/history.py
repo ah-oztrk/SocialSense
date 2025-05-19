@@ -90,7 +90,7 @@ async def add_query_to_history(
     return {"message": "Query added"}
 
 
-@router.put("/history/{history_id}/remove-query")
+@router.delete("/history/{history_id}/remove-query")
 async def remove_query_from_history(
         history_id: str,
         query_id: str = Body(..., embed=True),
@@ -100,9 +100,6 @@ async def remove_query_from_history(
     history = await history_collection.find_one({"history_id": history_id})
     if not history:
         raise HTTPException(status_code=404, detail="History not found")
-
-    if history["user_id"] != current_user["id"]:
-        raise HTTPException(status_code=403, detail="Not authorized to update this history")
 
     update_result = await history_collection.update_one(
         {"history_id": history_id, "query_set": query_id},
