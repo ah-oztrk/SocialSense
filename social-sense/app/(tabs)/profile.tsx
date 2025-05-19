@@ -207,11 +207,11 @@ export default function ProfileScreen() {
           <ActivityIndicator size="small" color="#007AFF" />
         )}
 
-        {!historyLoading && histories.length === 1 && (
+        {!historyLoading && histories.length === 0 && (
           <View style={{ paddingVertical: 30, alignItems: 'center' }}>
             <Text style={styles.noHistoryText}>You have no history yet.</Text>
           </View>)}
-        {!historyLoading && histories.length > 1 && (
+        {!historyLoading && histories.length > 0 && (
           histories.map((history) => (
             <View key={history.history_id} style={styles.historyItem}>
               {queriesByHistory[history.history_id]?.map((query) => (
