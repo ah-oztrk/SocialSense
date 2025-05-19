@@ -55,7 +55,12 @@ export default function AssistScreen() {
     setResponse('Loading...');
 
     
-    const token = await AsyncStorage.getItem('token');
+    const token = await authService.getToken(); //Get token from storage
+    
+    if (!token) {
+      setResponse('Not authenticated. Please login again.');
+      return;
+    }
 
     const res = await fetch('https://2dba-159-20-69-20.ngrok-free.app/query/', {
       method: 'POST',
