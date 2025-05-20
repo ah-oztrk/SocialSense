@@ -1,4 +1,3 @@
-// ... importlar (aynı kalıyor)
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
@@ -33,9 +32,9 @@ export default function ProfileScreen() {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [queriesByHistory, setQueriesByHistory] = useState<{ [key: string]: any[] }>({});
   const [refreshing, setRefreshing] = useState(false);
+  const [queryError, setQueryError] = useState<string | null>(null);
 
   const fetchUserData = async () => {
-    setLoading(true);
     try {
       const profileData = await userService.getUserProfile();
       setUser(profileData);
@@ -55,27 +54,43 @@ export default function ProfileScreen() {
   };
 
   const fetchHistories = async () => {
-    setHistoryLoading(true);
     try {
+      setQueryError(null); // Reset error state
       const data = await historyService.getUserHistories();
-      setHistories(data || []);
+      setHistories(data);
+
       const queriesMap: { [key: string]: any[] } = {};
       for (const history of data) {
-        const queryPromises = history.query_set.map((qid) =>
-          queryService.getQueryById(qid).catch(() => null)
-        );
+        if (history.query_set.length === 0) continue;
+
+        const queryPromises = history.query_set.map(async (qid) => {
+          try {
+            return await queryService.getQueryById(qid);
+          } catch (err) {
+            console.error('Error fetching query:', qid, err);
+            return null;
+          }
+        });
+
         const queries = (await Promise.all(queryPromises)).filter(Boolean);
+        if (queries.length === 0 && history.query_set.length > 0) {
+          setQueryError('Some queries could not be loaded. Please try refreshing.');
+        }
+
         queriesMap[history.history_id] = queries;
       }
 
       setQueriesByHistory(queriesMap);
     } catch (err) {
       console.error('Error fetching histories:', err);
-      setHistories([]);
+      if (histories.some(h => h.query_set.length > 0)) {
+        setQueryError('Failed to load queries. Please try again later.');
+      }
     } finally {
       setHistoryLoading(false);
     }
   };
+
 
 
   useEffect(() => {
@@ -118,194 +133,192 @@ export default function ProfileScreen() {
 
   return (
     <>
-      <View style={styles.header}>
-        <Text style={styles.headerText}>Your Profile</Text>
-      </View>
-      <ScrollView contentContainerStyle={styles.container}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={['#007AFF']}
-          />
-        }
-      >
-
-        <View style={styles.avatarContainer}>
-          <Image
-            source={user?.avatar ? { uri: user.avatar } : DefaultAvatar}
-            style={styles.avatar}
-            resizeMode="cover"
-          />
-          <Text style={styles.username}>{user.username}</Text>
-          <Text style={styles.email}>{user.email}</Text>
-          {user.age ? <Text style={styles.info}>Age: {user.age}</Text> : null}
-          {user.gender ? <Text style={styles.info}>Gender: {user.gender}</Text> : null}
+      <View style={{ flex: 1, backgroundColor: '#fff' }}>
+        <View style={styles.header}>
+          <Text style={styles.headerText}>Your Profile</Text>
         </View>
+        <ScrollView contentContainerStyle={styles.container}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#007AFF']}
+            />
+          }
+        >
 
-        {!editing && (
-          <Pressable style={styles.updateButton} onPress={() => setEditing(true)}>
-            <Text style={styles.updateButtonText}>Update Profile</Text>
-          </Pressable>
-        )}
-
-        {editing && (
-          <View style={styles.editSection}>
-            <Text style={styles.label}>Username</Text>
-            <TextInput
-              style={styles.input}
-              value={editData.username}
-              onChangeText={(text) => setEditData((prev) => ({ ...prev, username: text }))}
+          <View style={styles.avatarContainer}>
+            <Image
+              source={user?.avatar ? { uri: user.avatar } : DefaultAvatar}
+              style={styles.avatar}
+              resizeMode="cover"
             />
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              value={editData.email}
-              onChangeText={(text) => setEditData((prev) => ({ ...prev, email: text }))}
-            />
-            <Text style={styles.label}>Name</Text>
-            <TextInput
-              style={styles.input}
-              value={editData.name}
-              onChangeText={(text) => setEditData((prev) => ({ ...prev, name: text }))}
-            />
-            <Text style={styles.label}>Age</Text>
-            <TextInput
-              style={styles.input}
-              keyboardType="numeric"
-              value={editData.age?.toString()}
-              onChangeText={(text) => setEditData((prev) => ({ ...prev, age: parseInt(text) || 0 }))}
-            />
-            <Text style={styles.label}>Gender</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={editData.gender}
-                onValueChange={(value) => setEditData((prev) => ({ ...prev, gender: value }))}
-                style={styles.picker}
-              >
-                {genderOptions.map((option) => (
-                  <Picker.Item key={option} label={option} value={option} />
-                ))}
-              </Picker>
-            </View>
-            <Pressable style={styles.updateButton} onPress={handleUpdate} disabled={updating}>
-              {updating ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.updateButtonText}>Save Changes</Text>
-              )}
-            </Pressable>
-            <Pressable onPress={() => setEditing(false)}>
-              <Text style={styles.cancelText}>Cancel</Text>
-            </Pressable>
+            <Text style={styles.username}>{user.username}</Text>
+            <Text style={styles.email}>{user.email}</Text>
+            {user.age ? <Text style={styles.info}>Age: {user.age}</Text> : null}
+            {user.gender ? <Text style={styles.info}>Gender: {user.gender}</Text> : null}
           </View>
-        )}
 
-        <Text style={styles.sectionTitle}>Your Past Queries</Text>
+          {!editing && (
+            <Pressable style={styles.updateButton} onPress={() => setEditing(true)}>
+              <Text style={styles.updateButtonText}>Update Profile</Text>
+            </Pressable>
+          )}
 
-        {historyLoading && (
-          <ActivityIndicator size="small" color="#007AFF" />
-        )}
-
-        {!historyLoading && histories.length === 0 && (
-          <View style={{ paddingVertical: 30, alignItems: 'center' }}>
-            <Text style={styles.noHistoryText}>You have no history yet.</Text>
-          </View>)}
-        {!historyLoading && histories.length > 0 && (
-          histories.map((history) => (
-            <View key={history.history_id} style={styles.historyItem}>
-              {queriesByHistory[history.history_id]?.map((query) => (
-                <View key={query.id} style={styles.queryBox}>
-                  <Text style={styles.queryText}>🧠 {query.query}</Text>
-                  <Text style={styles.responseText}>💬 {query.response}</Text>
-                  <View style={{ marginTop: 8, alignItems: 'flex-end' }}>
-                    <Pressable
-                      onPress={async () => {
-                        try {
-                          console.log('[DEBUG] Trying to remove query with ID:', query.id);
-                          console.log('[DEBUG] User ID:', history.user_id);
-                          
-                          // Format the query ID to match the pattern in query_set
-                          const expectedQueryId = `qry_${history.user_id}_${query.id}`;
-                          console.log('[DEBUG] Looking for query ID pattern:', expectedQueryId);
-                          
-                          // Find the query in the history's query_set
-                          const queryToRemove = history.query_set.find(qid => 
-                            qid.startsWith(`qry_${history.user_id}`)
-                          );
-                          
-                          if (!queryToRemove) {
-                            console.error('[DEBUG] Query not found in history. Query ID:', query.id);
-                            console.error('[DEBUG] Available queries:', history.query_set);
-                            Alert.alert('Error', 'Could not find query in history.');
-                            return;
-                          }
-
-                          console.log('[DEBUG] Found query to remove:', queryToRemove);
-                          await historyService.removeQueryFromHistory(history.history_id, queryToRemove);
-                          
-                          const updatedHistories = await historyService.getUserHistories();
-                          setHistories(updatedHistories);
-
-                          const updatedQueriesMap: { [key: string]: any[] } = {};
-                          for (const h of updatedHistories) {
-                            const queryPromises = h.query_set.map((qid) =>
-                              queryService.getQueryById(qid).catch(() => null)
-                            );
-                            const queries = (await Promise.all(queryPromises)).filter(Boolean);
-                            updatedQueriesMap[h.history_id] = queries;
-                          }
-                          setQueriesByHistory(updatedQueriesMap);
-                        } catch (err) {
-                          console.error('Error removing query:', err);
-                          Alert.alert('Error', 'Failed to remove query.');
-                        }
-                      }}
-                    >
-                      <Text style={{ color: 'red', fontSize: 13 }}>Remove Query</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ))}
+          {editing && (
+            <View style={styles.editSection}>
+              <Text style={styles.label}>Username</Text>
+              <TextInput
+                style={styles.input}
+                value={editData.username}
+                onChangeText={(text) => setEditData((prev) => ({ ...prev, username: text }))}
+              />
+              <Text style={styles.label}>Email</Text>
+              <TextInput
+                style={styles.input}
+                value={editData.email}
+                onChangeText={(text) => setEditData((prev) => ({ ...prev, email: text }))}
+              />
+              <Text style={styles.label}>Name</Text>
+              <TextInput
+                style={styles.input}
+                value={editData.name}
+                onChangeText={(text) => setEditData((prev) => ({ ...prev, name: text }))}
+              />
+              <Text style={styles.label}>Age</Text>
+              <TextInput
+                style={styles.input}
+                keyboardType="numeric"
+                value={editData.age?.toString()}
+                onChangeText={(text) => setEditData((prev) => ({ ...prev, age: parseInt(text) || 0 }))}
+              />
+              <Text style={styles.label}>Gender</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={editData.gender}
+                  onValueChange={(value) => setEditData((prev) => ({ ...prev, gender: value }))}
+                  style={styles.picker}
+                >
+                  {genderOptions.map((option) => (
+                    <Picker.Item key={option} label={option} value={option} />
+                  ))}
+                </Picker>
+              </View>
+              <Pressable style={styles.updateButton} onPress={handleUpdate} disabled={updating}>
+                {updating ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.updateButtonText}>Save Changes</Text>
+                )}
+              </Pressable>
+              <Pressable onPress={() => setEditing(false)}>
+                <Text style={styles.cancelText}>Cancel</Text>
+              </Pressable>
             </View>
-          ))
-        )}
+          )}
 
-        {/* Clear All History Button */}
-        {histories.length > 0 && (
-          <Pressable
-            style={[styles.updateButton, { backgroundColor: 'red', marginTop: 30 }]}
-            onPress={async () => {
-              Alert.alert(
-                'Confirm',
-                'Are you sure you want to clear all history?',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Yes',
-                    style: 'destructive',
-                    onPress: async () => {
-                      try {
-                        for (const h of histories) {
-                          await historyService.deleteHistory(h.history_id);
+          <Text style={styles.sectionTitle}>Your Past Queries</Text>
+
+          {historyLoading ? (
+            <ActivityIndicator size="small" color="#007AFF" />
+          ) : histories.length === 0 ? (
+            <Text style={styles.noHistoryText}>You have no history yet.</Text>
+          ) : (
+            histories.map((history) => (
+              <View key={history.history_id} style={styles.historyItem}>
+                {queriesByHistory[history.history_id]?.map((query) => (
+                  <View key={query.id} style={styles.queryBox}>
+                    <Text style={styles.queryText}>🧠 {query.query}</Text>
+                    <Text style={styles.responseText}>💬 {query.response}</Text>
+                    <View style={{ marginTop: 8, alignItems: 'flex-end' }}>
+                      <Pressable
+                        onPress={async () => {
+                          try {
+                            console.log('[DEBUG] Trying to remove query with ID:', query.id);
+                            console.log('[DEBUG] User ID:', history.user_id);
+
+                            // Format the query ID to match the pattern in query_set
+                            const expectedQueryId = `qry_${history.user_id}_${query.id}`;
+                            console.log('[DEBUG] Looking for query ID pattern:', expectedQueryId);
+
+                            // Find the query in the history's query_set
+                            const queryToRemove = history.query_set.find(qid =>
+                              qid.startsWith(`qry_${history.user_id}`)
+                            );
+
+                            if (!queryToRemove) {
+                              console.error('[DEBUG] Query not found in history. Query ID:', query.id);
+                              console.error('[DEBUG] Available queries:', history.query_set);
+                              Alert.alert('Error', 'Could not find query in history.');
+                              return;
+                            }
+
+                            console.log('[DEBUG] Found query to remove:', queryToRemove);
+                            await historyService.removeQueryFromHistory(history.history_id, queryToRemove);
+
+                            const updatedHistories = await historyService.getUserHistories();
+                            setHistories(updatedHistories);
+
+                            const updatedQueriesMap: { [key: string]: any[] } = {};
+                            for (const h of updatedHistories) {
+                              const queryPromises = h.query_set.map((qid) =>
+                                queryService.getQueryById(qid).catch(() => null)
+                              );
+                              const queries = (await Promise.all(queryPromises)).filter(Boolean);
+                              updatedQueriesMap[h.history_id] = queries;
+                            }
+                            setQueriesByHistory(updatedQueriesMap);
+                          } catch (err) {
+                            console.error('Error removing query:', err);
+                            Alert.alert('Error', 'Failed to remove query.');
+                          }
+                        }}
+                      >
+                        <Text style={{ color: 'red', fontSize: 13 }}>Remove Query</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ))
+          )}
+
+          {/* Clear All History Button */}
+          {/*{histories.length > 0 && (
+            <Pressable
+              style={[styles.updateButton, { backgroundColor: 'red', marginTop: 30 }]}
+              onPress={async () => {
+                Alert.alert(
+                  'Confirm',
+                  'Are you sure you want to clear all history?',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Yes',
+                      style: 'destructive',
+                      onPress: async () => {
+                        try {
+                          for (const h of histories) {
+                            await historyService.deleteHistory(h.history_id);
+                          }
+                          setHistories([]);
+                          setQueriesByHistory({});
+                          Alert.alert('Success', 'All history cleared.');
+                        } catch (err) {
+                          console.error('Error clearing history:', err);
+                          Alert.alert('Error', 'Failed to clear history.');
                         }
-                        setHistories([]);
-                        setQueriesByHistory({});
-                        Alert.alert('Success', 'All history cleared.');
-                      } catch (err) {
-                        console.error('Error clearing history:', err);
-                        Alert.alert('Error', 'Failed to clear history.');
-                      }
+                      },
                     },
-                  },
-                ]
-              );
-            }}
-          >
-            <Text style={styles.updateButtonText}>Clear All History</Text>
-          </Pressable>
-        )}
-      </ScrollView>
+                  ]
+                );
+              }}
+            >
+              <Text style={styles.updateButtonText}>Clear All History</Text>
+            </Pressable> 
+          )} */}
+        </ScrollView>
+      </View>
     </>
   );
 }
@@ -425,8 +438,6 @@ const styles = StyleSheet.create({
     color: '#777',
     fontStyle: 'italic',
     textAlign: 'center',
-    paddingHorizontal: 10,
-    lineHeight: 22,
   },
   historyItem: {
     backgroundColor: '#eef4ff',
@@ -464,4 +475,31 @@ const styles = StyleSheet.create({
     color: '#555',
     marginTop: 5,
   },
+  errorContainer: {
+    backgroundColor: '#fff3f3',
+    padding: 15,
+    borderRadius: 10,
+    marginVertical: 10,
+    borderWidth: 1,
+    borderColor: '#ffcdd2',
+  },
+  errorText: {
+    color: '#d32f2f',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 10,
+    backgroundColor: '#007AFF',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 5,
+    alignSelf: 'center',
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+
 });
